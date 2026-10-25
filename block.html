@@ -68,6 +68,7 @@
 .discount-calc .dc-btn-ghost{background:#fff; color:var(--dc-text); border-color:#d1d5db}
 .discount-calc .dc-btn-ghost:hover{background:#f9fafb}
 .discount-calc .dc-stale-note{display:none; width:100%; font-size:13px; color:var(--dc-amber)}
+.discount-calc .dc-xlsx{width:100%}
 
 /* Данные изменились после расчёта */
 .discount-calc.is-stale .dc-results{opacity:.45}
@@ -280,7 +281,37 @@
     }
 
     // ----- Расчёт -----
-    function calculate() {
+    // ----- Сохранение введённого в браузере: после обновления страницы всё на месте -----
+    var STORE_KEY = 'discount-calc-v1';
+    function save() {
+      try {
+        var st = { f: {}, rows: [], calc: calculated };
+        Array.prototype.forEach.call(root.querySelectorAll('[data-f]'), function (el) {
+          st.f[el.getAttribute('data-f')] = el.value;
+        });
+        Array.prototype.forEach.call(rowsWrap.querySelectorAll('.dc-mat-row'), function (row) {
+          st.rows.push(['name', 'qty', 'price'].map(function (k) { return row.querySelector('[data-k="' + k + '"]').value; }));
+        });
+        localStorage.setItem(STORE_KEY, JSON.stringify(st));
+      } catch (e) {}
+    }
+    function restore() {
+      var st;
+      try { st = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { return false; }
+      if (!st || !st.f) return false;
+      Array.prototype.forEach.call(root.querySelectorAll('[data-f]'), function (el) {
+        el.value = st.f[el.getAttribute('data-f')] || '';
+      });
+      (st.rows && st.rows.length ? st.rows : [['', '', '']]).forEach(function (r) {
+        var row = addRow();
+        ['name', 'qty', 'price'].forEach(function (k, i) { row.querySelector('[data-k="' + k + '"]').value = r[i] || ''; });
+      });
+      updateSums();
+      if (st.calc) calculate(true);
+      return true;
+    }
+
+    function calculate(noScroll) {
       var c = costParts();
       var cost = c.cost;
       var base = field('base');
@@ -377,12 +408,253 @@
       }
       html += '</div>';
 
+      html += '<button type="button" class="dc-btn dc-btn-ghost dc-xlsx">Скачать расчёт в Excel</button>';
+
       results.innerHTML = '<div class="dc-out">' + html + '</div>';
       calculated = true;
       root.classList.remove('is-stale');
-      if (window.innerWidth <= 960 && results.scrollIntoView) {
+      save();
+      if (!noScroll && window.innerWidth <= 960 && results.scrollIntoView) {
         results.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
+    }
+
+    // ----- Выгрузка в Excel: формулы и пояснения, без внешних библиотек -----
+    function downloadXlsx() {
+      var z = function (v) { return v === null ? 0 : v; };
+      var mats = [];
+      Array.prototype.forEach.call(rowsWrap.querySelectorAll('.dc-mat-row'), function (row) {
+        var name = row.querySelector('[data-k="name"]').value.trim();
+        var q = num(row.querySelector('[data-k="qty"]'));
+        var p = num(row.querySelector('[data-k="price"]'));
+        if (name || q !== null || p !== null) mats.push({ name: name, qty: z(q), price: z(p) });
+      });
+      if (!mats.length) mats.push({ name: '', qty: 0, price: 0 });
+
+      var hours = z(field('hours')), rate = z(field('rate')), over = z(field('over'));
+      var base = z(field('base')), m = z(field('markup')), d = z(field('disc'));
+      var salary = z(field('salary')), mp = z(field('pct'));
+
+      // Значения для показа до пересчёта: те же формулы, что в ячейках
+      var mat = 0;
+      mats.forEach(function (r) { mat += r.qty * r.price; });
+      var work = hours * rate, cost = mat + work + over;
+      var minP = cost * (1 + m / 100);
+      var maxRub = Math.max(0, base - minP);
+      var maxPct = base > 0 ? Math.max(0, floor2((base - minP) / base * 100)) : 0;
+      var pD = base * (1 - d / 100);
+      var mk = cost > 0 ? round2((pD - cost) / cost * 100) : 0;
+      var okText = round2(pD) >= round2(minP) ? 'Скидка допустима' : 'Скидка ниже допустимой наценки';
+      var b0 = base * mp / 100, bD = pD * mp / 100;
+
+      // Стили: 1 заголовок, 2 шапка, 3 текст, 4 ввод-число, 5 формула, 6 пояснение,
+      // 7 раздел, 8 итог-число, 9 ввод-текст, 10 итог-текст, 11 жирный текст, 12 примечание
+      var rows = [], merges = [];
+      function put(cells) { rows.push(cells); return rows.length; }
+      function blank() { rows.push([]); }
+      function line(label, cell, explain) {
+        var r = rows.length + 1;
+        merges.push('A' + r + ':C' + r);
+        return put([{ v: label, s: cell.s === 8 || cell.s === 10 ? 11 : 3 }, { s: 3 }, { s: 3 }, cell, { v: explain, s: 6 }]);
+      }
+      function input(v) { return { v: v, s: 4 }; }
+      function calc(f, v, total) { return { f: f, v: v, s: total ? (typeof v === 'string' ? 10 : 8) : 5 }; }
+
+      put([{ v: 'Расчёт максимальной скидки', s: 1 }]);
+      put([{ v: 'Дата расчёта: ' + new Date().toLocaleDateString('ru-RU'), s: 12 }]);
+      put([{ v: 'Жёлтые ячейки — исходные данные, их можно менять. Остальные считаются формулами: нажмите на ячейку, и формула появится в строке формул.', s: 12 }]);
+      blank();
+
+      put([{ v: '1. Комплектующие (материалы)', s: 7 }]);
+      put([{ v: 'Наименование', s: 2 }, { v: 'Кол-во', s: 2 }, { v: 'Цена за ед., ₽', s: 2 }, { v: 'Сумма, ₽', s: 2 }, { v: 'Как считается', s: 2 }]);
+      var first = rows.length + 1;
+      mats.forEach(function (r) {
+        var n = rows.length + 1;
+        put([{ v: r.name, s: 9 }, input(r.qty), input(r.price), calc('B' + n + '*C' + n, r.qty * r.price), { v: 'Количество × цена за единицу', s: 6 }]);
+      });
+      var last = rows.length;
+      var rMat = line('Итого материалы, ₽', calc('SUM(D' + first + ':D' + last + ')', mat, true), 'Сумма столбца «Сумма» по всем деталям');
+      blank();
+
+      var head = function (title) {
+        put([{ v: title, s: 7 }]);
+        merges.push('A' + (rows.length + 1) + ':C' + (rows.length + 1));
+        put([{ v: 'Показатель', s: 2 }, { s: 2 }, { s: 2 }, { v: 'Значение', s: 2 }, { v: 'Как считается и откуда берётся', s: 2 }]);
+      };
+
+      head('2. Себестоимость');
+      var rH = line('Затраченное время, часов', input(hours), 'Вводится: поле «Затраченное время»');
+      var rR = line('Ставка специалиста, ₽/час', input(rate), 'Вводится: поле «Ставка специалиста»');
+      var rW = line('Работы, ₽', calc('D' + rH + '*D' + rR, work), 'Часы × ставка');
+      var rO = line('Накладные, ₽', input(over), 'Вводится: упаковка, логистика, свет');
+      var rM = line('Материалы, ₽', calc('D' + rMat, mat), 'Итог раздела 1');
+      var rC = line('Себестоимость, ₽', calc('D' + rM + '+D' + rW + '+D' + rO, cost, true), 'Материалы + работы + накладные');
+      blank();
+
+      head('3. Минимальная цена и максимальная скидка');
+      var rB = line('Базовая цена (прайс), ₽', input(base), 'Вводится: цена по прайсу до скидки');
+      var rMk = line('Минимально допустимая наценка, %', input(m), 'Вводится. Наценка считается на себестоимость');
+      var rMin = line('Минимально допустимая цена, ₽', calc('D' + rC + '*(1+D' + rMk + '/100)', minP, true),
+        'Себестоимость × (1 + наценка / 100). Дешевле этой цены продавать нельзя');
+      line('Максимальная скидка, ₽', calc('MAX(0,D' + rB + '-D' + rMin + ')', maxRub),
+        'Прайс − минимальная цена. Если прайс ниже минимальной цены, скидка 0');
+      line('Максимальная скидка, %', calc('IF(D' + rB + '>0,MAX(0,ROUNDDOWN((D' + rB + '-D' + rMin + ')/D' + rB + '*100,2)),0)', maxPct, true),
+        '(Прайс − минимальная цена) / прайс × 100. Округление вниз до сотых, чтобы не перейти границу');
+      blank();
+
+      head('4. Скидка, которую хочу дать');
+      var rD = line('Скидка, %', input(d), 'Вводится: поле «Скидка, которую хочу дать»');
+      var rP = line('Цена со скидкой, ₽', calc('D' + rB + '*(1-D' + rD + '/100)', pD, true), 'Прайс × (1 − скидка / 100)');
+      line('Итоговая наценка, %', calc('IF(D' + rC + '>0,ROUND((D' + rP + '-D' + rC + ')/D' + rC + '*100,2),0)', mk),
+        '(Цена со скидкой − себестоимость) / себестоимость × 100');
+      line('Проверка', calc('IF(ROUND(D' + rP + ',2)>=ROUND(D' + rMin + ',2),"Скидка допустима","Скидка ниже допустимой наценки")', okText, true),
+        'Цена со скидкой сравнивается с минимально допустимой ценой');
+      line('Не хватает до минимальной цены, ₽', calc('MAX(0,D' + rMin + '-D' + rP + ')', Math.max(0, minP - pD)),
+        'Минимальная цена − цена со скидкой. 0, если скидка допустима');
+      blank();
+
+      head('5. Зарплата менеджера');
+      var rS = line('Оклад, ₽/мес', input(salary), 'Вводится: поле «Оклад»');
+      var rPc = line('Процент от суммы продажи, %', input(mp), 'Вводится: поле «Процент от суммы продажи»');
+      var r0 = line('Получит без скидки, ₽', calc('D' + rB + '*D' + rPc + '/100', b0, true), 'Прайс × процент / 100');
+      var r1 = line('Получит со скидкой, ₽', calc('D' + rP + '*D' + rPc + '/100', bD, true), 'Цена со скидкой × процент / 100');
+      line('Доход за месяц без скидки, ₽', calc('D' + rS + '+D' + r0, salary + b0), 'Оклад + процент без скидки');
+      line('Доход за месяц со скидкой, ₽', calc('D' + rS + '+D' + r1, salary + bD), 'Оклад + процент со скидкой');
+
+      var blob = xlsxBlob(rows, merges);
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'raschet-skidki.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.parentNode.removeChild(a); }, 1000);
+    }
+
+    function esc(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function xlsxBlob(rows, merges) {
+      var COLS = 'ABCDE';
+      var sheetRows = rows.map(function (cells, i) {
+        var r = i + 1;
+        var xml = cells.map(function (c, j) {
+          var ref = COLS[j] + r, s = ' s="' + (c.s || 0) + '"';
+          if (c.f !== undefined) {
+            return typeof c.v === 'string'
+              ? '<c r="' + ref + '"' + s + ' t="str"><f>' + esc(c.f) + '</f><v>' + esc(c.v) + '</v></c>'
+              : '<c r="' + ref + '"' + s + '><f>' + esc(c.f) + '</f><v>' + c.v + '</v></c>';
+          }
+          if (typeof c.v === 'number') return '<c r="' + ref + '"' + s + '><v>' + c.v + '</v></c>';
+          if (c.v) return '<c r="' + ref + '"' + s + ' t="inlineStr"><is><t xml:space="preserve">' + esc(c.v) + '</t></is></c>';
+          return '<c r="' + ref + '"' + s + '/>';
+        }).join('');
+        return '<row r="' + r + '">' + xml + '</row>';
+      }).join('');
+
+      var sheet = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+        '<cols><col min="1" max="1" width="30" customWidth="1"/><col min="2" max="2" width="10" customWidth="1"/>' +
+        '<col min="3" max="3" width="15" customWidth="1"/><col min="4" max="4" width="18" customWidth="1"/>' +
+        '<col min="5" max="5" width="70" customWidth="1"/></cols>' +
+        '<sheetData>' + sheetRows + '</sheetData>' +
+        '<mergeCells count="' + merges.length + '">' + merges.map(function (m) { return '<mergeCell ref="' + m + '"/>'; }).join('') + '</mergeCells>' +
+        '</worksheet>';
+
+      var b = '<border><left style="thin"><color rgb="FFD1D5DB"/></left><right style="thin"><color rgb="FFD1D5DB"/></right>' +
+        '<top style="thin"><color rgb="FFD1D5DB"/></top><bottom style="thin"><color rgb="FFD1D5DB"/></bottom><diagonal/></border>';
+      var styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+        '<fonts count="4"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font>' +
+        '<font><b/><sz val="14"/><name val="Calibri"/></font><font><i/><sz val="10"/><color rgb="FF6B7280"/><name val="Calibri"/></font></fonts>' +
+        '<fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>' +
+        '<fill><patternFill patternType="solid"><fgColor rgb="FFFFF2CC"/></patternFill></fill>' +
+        '<fill><patternFill patternType="solid"><fgColor rgb="FFF3F4F6"/></patternFill></fill>' +
+        '<fill><patternFill patternType="solid"><fgColor rgb="FFECFDF3"/></patternFill></fill></fills>' +
+        '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>' + b + '</borders>' +
+        '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+        '<cellXfs count="13">' +
+        '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+        '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
+        '<xf numFmtId="0" fontId="1" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment wrapText="1" vertical="center"/></xf>' +
+        '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment wrapText="1" vertical="center"/></xf>' +
+        '<xf numFmtId="4" fontId="0" fillId="2" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' +
+        '<xf numFmtId="4" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' +
+        '<xf numFmtId="0" fontId="3" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment wrapText="1" vertical="center"/></xf>' +
+        '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
+        '<xf numFmtId="4" fontId="1" fillId="4" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' +
+        '<xf numFmtId="0" fontId="0" fillId="2" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment wrapText="1" vertical="center"/></xf>' +
+        '<xf numFmtId="0" fontId="1" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment wrapText="1" vertical="center"/></xf>' +
+        '<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment wrapText="1" vertical="center"/></xf>' +
+        '<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
+        '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+
+      var files = [
+        ['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+          '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+          '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+          '<Default Extension="xml" ContentType="application/xml"/>' +
+          '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+          '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+          '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+          '</Types>'],
+        ['_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+          '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+          '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+          '</Relationships>'],
+        ['xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+          '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
+          'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+          '<sheets><sheet name="Расчёт" sheetId="1" r:id="rId1"/></sheets><calcPr calcId="0" fullCalcOnLoad="1"/></workbook>'],
+        ['xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+          '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+          '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+          '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+          '</Relationships>'],
+        ['xl/worksheets/sheet1.xml', sheet],
+        ['xl/styles.xml', styles]
+      ];
+      return new Blob(zipStore(files), { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    }
+
+    // Простой zip без сжатия: xlsx — это zip-архив с xml-файлами
+    var CRC_TABLE = null;
+    function crc32(u8) {
+      if (!CRC_TABLE) {
+        CRC_TABLE = [];
+        for (var n = 0; n < 256; n++) {
+          var c = n;
+          for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+          CRC_TABLE[n] = c >>> 0;
+        }
+      }
+      var crc = 0xFFFFFFFF;
+      for (var i = 0; i < u8.length; i++) crc = CRC_TABLE[(crc ^ u8[i]) & 255] ^ (crc >>> 8);
+      return (crc ^ 0xFFFFFFFF) >>> 0;
+    }
+    function zipStore(files) {
+      var enc = new TextEncoder(), parts = [], central = [], offset = 0, cdSize = 0;
+      files.forEach(function (f) {
+        var name = enc.encode(f[0]), data = enc.encode(f[1]), crc = crc32(data);
+        var h = new DataView(new ArrayBuffer(30));
+        h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true);
+        h.setUint16(8, 0, true); h.setUint16(10, 0, true); h.setUint16(12, 0x21, true);
+        h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true);
+        h.setUint16(26, name.length, true); h.setUint16(28, 0, true);
+        parts.push(new Uint8Array(h.buffer), name, data);
+        var c = new DataView(new ArrayBuffer(46));
+        c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true);
+        c.setUint16(10, 0, true); c.setUint16(12, 0, true); c.setUint16(14, 0x21, true);
+        c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true);
+        c.setUint16(28, name.length, true); c.setUint32(42, offset, true);
+        central.push(new Uint8Array(c.buffer), name);
+        cdSize += 46 + name.length;
+        offset += 30 + name.length + data.length;
+      });
+      var e = new DataView(new ArrayBuffer(22));
+      e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
+      e.setUint32(12, cdSize, true); e.setUint32(16, offset, true);
+      return parts.concat(central, [new Uint8Array(e.buffer)]);
     }
 
     function reset() {
@@ -393,6 +665,7 @@
       calculated = false;
       root.classList.remove('is-stale');
       updateSums();
+      try { localStorage.removeItem(STORE_KEY); } catch (e) {}
     }
 
     // ----- События -----
@@ -401,6 +674,7 @@
       if (t.classList && t.classList.contains('dc-num')) sanitize(t);
       updateSums();
       if (calculated) root.classList.add('is-stale');
+      save();
     });
 
     root.addEventListener('click', function (e) {
@@ -409,6 +683,7 @@
       if (t.classList.contains('dc-add')) {
         addRow().querySelector('[data-k="name"]').focus();
         if (calculated) root.classList.add('is-stale');
+        save();
       } else if (t.classList.contains('dc-del')) {
         var row = t.closest('.dc-mat-row');
         if (rowsWrap.children.length > 1) {
@@ -418,10 +693,13 @@
         }
         updateSums();
         if (calculated) root.classList.add('is-stale');
+        save();
       } else if (t.classList.contains('dc-calc')) {
         calculate();
       } else if (t.classList.contains('dc-reset')) {
         reset();
+      } else if (t.classList.contains('dc-xlsx')) {
+        downloadXlsx();
       }
     });
 
@@ -432,8 +710,10 @@
       }
     });
 
-    addRow();
-    updateSums();
+    if (!restore()) {
+      addRow();
+      updateSums();
+    }
   }
 })();
 </script>
