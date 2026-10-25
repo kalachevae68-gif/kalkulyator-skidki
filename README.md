@@ -14,6 +14,7 @@ HTML-блок для GetCourse: сотрудник производства вв
 | `publish.sh` | Публикация на GitHub: `bash publish.sh "что поменялось"` |
 
 GitHub: github.com/kalachevae68-gif/kalkulyator-skidki
+Открыть в браузере: https://kalachevae68-gif.github.io/kalkulyator-skidki/
 
 ## Решения, принятые с пользователем (25.10.2026)
 
