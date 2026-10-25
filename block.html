@@ -1,0 +1,440 @@
+<!-- Калькулятор максимальной скидки. Вставлять целиком в HTML-блок GetCourse. -->
+<div class="discount-calc">
+<style>
+/* ===== Основа и цвета ===== */
+.discount-calc{
+  --dc-bg:#f3f4f6; --dc-card:#ffffff; --dc-text:#111827; --dc-muted:#6b7280; --dc-border:#e5e7eb;
+  --dc-dark:#111827; --dc-green:#16a34a; --dc-green-dark:#15803d; --dc-green-bg:#ecfdf3;
+  --dc-red:#dc2626; --dc-red-bg:#fef2f2; --dc-amber-bg:#fffbeb; --dc-amber:#92400e;
+  --dc-blue:#3b82f6; --dc-orange:#f59e0b; --dc-gray:#9ca3af;
+  max-width:1100px; margin:0 auto; background:var(--dc-bg); color:var(--dc-text);
+  border-radius:16px; overflow:hidden; text-align:left; font-size:15px; line-height:1.4;
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+}
+.discount-calc *,.discount-calc *::before,.discount-calc *::after{box-sizing:border-box}
+.discount-calc p{margin:0}
+
+/* ===== Шапка ===== */
+.discount-calc .dc-head{background:var(--dc-dark); color:#fff; padding:20px 24px}
+.discount-calc .dc-title{margin:0; font-size:22px; font-weight:700; line-height:1.25; color:#fff}
+.discount-calc .dc-subtitle{margin-top:4px; font-size:14px; color:#9ca3af}
+
+/* ===== Сетка ===== */
+.discount-calc .dc-body{padding:20px}
+.discount-calc .dc-grid{display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:20px; align-items:start}
+.discount-calc .dc-col{display:flex; flex-direction:column; gap:16px; min-width:0}
+.discount-calc .dc-pair{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+.discount-calc .dc-results{position:sticky; top:16px; transition:opacity .2s}
+
+/* ===== Карточки ===== */
+.discount-calc .dc-card{background:var(--dc-card); border:1px solid var(--dc-border); border-radius:14px;
+  padding:18px; box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.discount-calc .dc-card-head{display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px}
+.discount-calc .dc-card-title{font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.04em}
+.discount-calc .dc-badge{background:var(--dc-green-bg); color:var(--dc-green-dark); font-weight:700;
+  font-size:14px; padding:4px 10px; border-radius:999px; white-space:nowrap}
+
+/* ===== Поля ===== */
+.discount-calc .dc-field{display:block; margin:0 0 12px}
+.discount-calc .dc-field:last-child,.discount-calc .dc-pair .dc-field{margin-bottom:0}
+.discount-calc .dc-label{display:block; font-size:13px; color:var(--dc-muted); margin-bottom:6px}
+.discount-calc .dc-hint{display:block; font-size:12px; color:var(--dc-muted); margin-top:4px}
+.discount-calc input.dc-input{display:block; width:100%; height:44px; margin:0; padding:0 12px;
+  border:1px solid #d1d5db; border-radius:10px; background:#fff; color:var(--dc-text);
+  font:inherit; font-size:16px; box-shadow:none; outline:none; -webkit-appearance:none; appearance:none}
+.discount-calc input.dc-input:focus{border-color:var(--dc-green); box-shadow:0 0 0 3px rgba(22,163,74,.15)}
+.discount-calc input.dc-input::placeholder{color:#b0b6bf}
+.discount-calc input.dc-num{text-align:right; font-variant-numeric:tabular-nums}
+
+/* ===== Таблица материалов ===== */
+.discount-calc .dc-mat-head,.discount-calc .dc-mat-row{display:grid;
+  grid-template-columns:minmax(0,1fr) 80px 130px 40px; gap:8px; align-items:center}
+.discount-calc .dc-mat-head{font-size:12px; color:var(--dc-muted); margin-bottom:6px}
+.discount-calc .dc-mat-head span:nth-child(2),.discount-calc .dc-mat-head span:nth-child(3){text-align:right}
+.discount-calc .dc-mat-rows{display:flex; flex-direction:column; gap:8px}
+.discount-calc .dc-del{width:40px; height:44px; padding:0; margin:0; border:0; border-radius:10px;
+  background:transparent; color:#9ca3af; cursor:pointer; display:flex; align-items:center; justify-content:center}
+.discount-calc .dc-del:hover{background:var(--dc-red-bg); color:var(--dc-red)}
+.discount-calc .dc-add{margin-top:12px; height:40px; padding:0 14px; border:1px dashed #c4c9d1; border-radius:10px;
+  background:#fff; color:var(--dc-green-dark); font:inherit; font-weight:600; cursor:pointer}
+.discount-calc .dc-add:hover{border-color:var(--dc-green); background:var(--dc-green-bg)}
+
+/* ===== Кнопки ===== */
+.discount-calc .dc-actions{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+.discount-calc .dc-btn{height:48px; padding:0 22px; margin:0; border-radius:12px; font:inherit; font-size:16px;
+  font-weight:700; cursor:pointer; border:1px solid transparent; transition:background .15s, box-shadow .15s}
+.discount-calc .dc-btn-primary{background:var(--dc-green); color:#fff; flex:1 1 220px}
+.discount-calc .dc-btn-primary:hover{background:var(--dc-green-dark)}
+.discount-calc .dc-btn-ghost{background:#fff; color:var(--dc-text); border-color:#d1d5db}
+.discount-calc .dc-btn-ghost:hover{background:#f9fafb}
+.discount-calc .dc-stale-note{display:none; width:100%; font-size:13px; color:var(--dc-amber)}
+
+/* Данные изменились после расчёта */
+.discount-calc.is-stale .dc-results{opacity:.45}
+.discount-calc.is-stale .dc-stale-note{display:block}
+.discount-calc.is-stale .dc-btn-primary{animation:dc-pulse 1.6s infinite}
+@keyframes dc-pulse{0%{box-shadow:0 0 0 0 rgba(22,163,74,.45)}70%{box-shadow:0 0 0 10px rgba(22,163,74,0)}100%{box-shadow:0 0 0 0 rgba(22,163,74,0)}}
+
+/* ===== Результаты ===== */
+.discount-calc .dc-out{display:flex; flex-direction:column; gap:16px}
+.discount-calc .dc-empty{color:var(--dc-muted); text-align:center; padding:32px 18px}
+.discount-calc .dc-out-label{font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--dc-muted)}
+.discount-calc .dc-big{font-size:34px; font-weight:800; line-height:1.15; margin-top:6px; font-variant-numeric:tabular-nums; word-break:break-word}
+.discount-calc .dc-sub{font-size:13px; color:var(--dc-muted); margin-top:4px}
+.discount-calc .dc-bar{display:flex; height:8px; border-radius:99px; overflow:hidden; background:#eef0f3; margin-top:12px}
+.discount-calc .dc-bar span{display:block; height:100%}
+.discount-calc .dc-legend{display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:8px; font-size:12px; color:var(--dc-muted)}
+.discount-calc .dc-legend i{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px}
+
+.discount-calc .dc-card-green{background:var(--dc-green-bg); border-color:#bbf7d0}
+.discount-calc .dc-card-green .dc-out-label{color:var(--dc-green-dark)}
+.discount-calc .dc-card-green .dc-big{color:var(--dc-green-dark)}
+.discount-calc .dc-inner{background:#fff; border-radius:12px; padding:12px 14px; margin-top:14px}
+
+.discount-calc .dc-row{display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:6px 0}
+.discount-calc .dc-row b{font-variant-numeric:tabular-nums; white-space:nowrap}
+.discount-calc .dc-sep{height:1px; background:var(--dc-border); margin:6px 0}
+
+.discount-calc .dc-status{border-radius:12px; padding:12px 14px; margin-top:12px; font-size:14px}
+.discount-calc .dc-status-ok{background:var(--dc-green-bg); color:var(--dc-green-dark)}
+.discount-calc .dc-status-bad{background:var(--dc-red-bg); color:var(--dc-red); border:1px solid #fecaca}
+.discount-calc .dc-status b{display:block; margin-bottom:2px}
+.discount-calc .dc-note{background:var(--dc-amber-bg); color:var(--dc-amber); border:1px solid #fde68a}
+.discount-calc .dc-note ul{margin:6px 0 0; padding-left:18px}
+
+/* ===== Адаптив ===== */
+@media (max-width:960px){
+  .discount-calc .dc-grid{grid-template-columns:1fr}
+  .discount-calc .dc-results{position:static}
+}
+@media (max-width:600px){
+  .discount-calc .dc-body{padding:12px}
+  .discount-calc .dc-head{padding:16px}
+  .discount-calc .dc-title{font-size:19px}
+  .discount-calc .dc-pair{grid-template-columns:1fr}
+  .discount-calc .dc-card{padding:14px}
+  .discount-calc .dc-big{font-size:28px}
+  .discount-calc .dc-mat-head{display:none}
+  .discount-calc .dc-mat-row{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) 40px;
+    grid-template-areas:"name name name" "qty price del"; padding-bottom:10px; border-bottom:1px solid var(--dc-border)}
+  .discount-calc .dc-mat-row [data-k="name"]{grid-area:name}
+  .discount-calc .dc-mat-row [data-k="qty"]{grid-area:qty}
+  .discount-calc .dc-mat-row [data-k="price"]{grid-area:price}
+  .discount-calc .dc-mat-row .dc-del{grid-area:del}
+  .discount-calc .dc-btn{flex:1 1 100%}
+}
+</style>
+
+  <div class="dc-head">
+    <h2 class="dc-title">Калькулятор скидки</h2>
+    <p class="dc-subtitle">Себестоимость, минимальная цена и максимальная скидка для клиента</p>
+  </div>
+
+  <div class="dc-body">
+    <div class="dc-grid">
+
+      <!-- ===== Ввод ===== -->
+      <div class="dc-col">
+
+        <div class="dc-card">
+          <div class="dc-card-head">
+            <span class="dc-card-title">1. Комплектующие (материалы)</span>
+            <span class="dc-badge" data-sum="mat">0,00 ₽</span>
+          </div>
+          <div class="dc-mat-head"><span>Наименование</span><span>Кол-во</span><span>Цена за ед., ₽</span><span></span></div>
+          <div class="dc-mat-rows"></div>
+          <button type="button" class="dc-add">+ Добавить деталь</button>
+        </div>
+
+        <div class="dc-pair">
+          <div class="dc-card">
+            <div class="dc-card-head">
+              <span class="dc-card-title">2. Сборка / работы</span>
+              <span class="dc-badge" data-sum="work">0,00 ₽</span>
+            </div>
+            <label class="dc-field"><span class="dc-label">Затраченное время, часов</span>
+              <input class="dc-input dc-num" data-f="hours" inputmode="decimal" placeholder="0"></label>
+            <label class="dc-field"><span class="dc-label">Ставка специалиста, ₽/час</span>
+              <input class="dc-input dc-num" data-f="rate" inputmode="decimal" placeholder="0"></label>
+          </div>
+          <div class="dc-card">
+            <div class="dc-card-head"><span class="dc-card-title">3. Накладные</span></div>
+            <label class="dc-field"><span class="dc-label">Упаковка, логистика, свет, ₽</span>
+              <input class="dc-input dc-num" data-f="over" inputmode="decimal" placeholder="0"></label>
+          </div>
+        </div>
+
+        <div class="dc-card">
+          <div class="dc-card-head"><span class="dc-card-title">4. Цена и наценка</span></div>
+          <label class="dc-field"><span class="dc-label">Базовая цена (прайс), ₽</span>
+            <input class="dc-input dc-num" data-f="base" inputmode="decimal" placeholder="например, 55 000"></label>
+          <label class="dc-field"><span class="dc-label">Минимально допустимая наценка, %</span>
+            <input class="dc-input dc-num" data-f="markup" inputmode="decimal" placeholder="например, 20">
+            <span class="dc-hint">Наценка считается на себестоимость</span></label>
+          <label class="dc-field"><span class="dc-label">Скидка, которую хочу дать, %</span>
+            <input class="dc-input dc-num" data-f="disc" data-max="100" inputmode="decimal" placeholder="например, 10"></label>
+        </div>
+
+        <div class="dc-card">
+          <div class="dc-card-head"><span class="dc-card-title">5. Зарплата менеджера</span></div>
+          <div class="dc-pair">
+            <label class="dc-field"><span class="dc-label">Оклад, ₽/мес</span>
+              <input class="dc-input dc-num" data-f="salary" inputmode="decimal" placeholder="0"></label>
+            <label class="dc-field"><span class="dc-label">Процент от суммы продажи, %</span>
+              <input class="dc-input dc-num" data-f="pct" data-max="100" inputmode="decimal" placeholder="например, 3"></label>
+          </div>
+        </div>
+
+        <div class="dc-actions">
+          <button type="button" class="dc-btn dc-btn-primary dc-calc">Рассчитать</button>
+          <button type="button" class="dc-btn dc-btn-ghost dc-reset">Сбросить</button>
+          <span class="dc-stale-note">Данные изменились. Нажмите «Рассчитать», чтобы обновить результат.</span>
+        </div>
+      </div>
+
+      <!-- ===== Результаты ===== -->
+      <div class="dc-results" aria-live="polite">
+        <div class="dc-card dc-empty">Заполните данные и нажмите «Рассчитать»</div>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+(function () {
+  var roots = document.querySelectorAll('.discount-calc:not([data-dc-ready])');
+  Array.prototype.forEach.call(roots, init);
+
+  function init(root) {
+    root.setAttribute('data-dc-ready', '1');
+    var rowsWrap = root.querySelector('.dc-mat-rows');
+    var results = root.querySelector('.dc-results');
+    var emptyHtml = results.innerHTML;
+    var calculated = false;
+
+    var TRASH = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/>' +
+      '<path d="M19 6l-1 14H6L5 6"/></svg>';
+
+    function addRow() {
+      var row = document.createElement('div');
+      row.className = 'dc-mat-row';
+      row.innerHTML =
+        '<input class="dc-input" data-k="name" placeholder="Наименование" aria-label="Наименование">' +
+        '<input class="dc-input dc-num" data-k="qty" inputmode="decimal" placeholder="Кол-во" aria-label="Количество">' +
+        '<input class="dc-input dc-num" data-k="price" inputmode="decimal" placeholder="Цена за ед." aria-label="Цена за единицу, рублей">' +
+        '<button type="button" class="dc-del" aria-label="Удалить строку">' + TRASH + '</button>';
+      rowsWrap.appendChild(row);
+      return row;
+    }
+
+    // ----- Числа -----
+    function num(el) {
+      var s = (el.value || '').replace(/\s/g, '').replace(',', '.');
+      if (s === '' || s === '.') return null;
+      var n = parseFloat(s);
+      return isNaN(n) ? null : n;
+    }
+    function field(name) { return num(root.querySelector('[data-f="' + name + '"]')); }
+    function round2(n) { return Math.round((n + (n >= 0 ? 1e-9 : -1e-9)) * 100) / 100; }
+    function floor2(n) { return Math.floor(n * 100 + 1e-9) / 100; }
+    function money(n) {
+      if (n === null) return '—';
+      n = round2(n);
+      if (n === 0) n = 0;
+      return n.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₽';
+    }
+    function pct(n) {
+      if (n === null) return '—';
+      n = round2(n);
+      if (n === 0) n = 0;
+      return n.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + '%';
+    }
+
+    // Оставляем только цифры и один разделитель, отрицательные числа не вводятся
+    function sanitize(el) {
+      var v = el.value.replace(/[^\d.,]/g, '');
+      var i = v.search(/[.,]/);
+      if (i !== -1) v = v.slice(0, i + 1) + v.slice(i + 1).replace(/[.,]/g, '');
+      var max = el.getAttribute('data-max');
+      if (max !== null && num({ value: v }) > parseFloat(max)) v = max;
+      if (v !== el.value) el.value = v;
+    }
+
+    // ----- Суммы в заголовках карточек -----
+    function costParts() {
+      var mat = 0;
+      Array.prototype.forEach.call(rowsWrap.querySelectorAll('.dc-mat-row'), function (row) {
+        var q = num(row.querySelector('[data-k="qty"]')) || 0;
+        var p = num(row.querySelector('[data-k="price"]')) || 0;
+        mat += q * p;
+      });
+      var work = (field('hours') || 0) * (field('rate') || 0);
+      var over = field('over') || 0;
+      return { mat: mat, work: work, over: over, cost: mat + work + over };
+    }
+    function updateSums() {
+      var c = costParts();
+      root.querySelector('[data-sum="mat"]').textContent = money(c.mat);
+      root.querySelector('[data-sum="work"]').textContent = money(c.work);
+    }
+
+    // ----- Расчёт -----
+    function calculate() {
+      var c = costParts();
+      var cost = c.cost;
+      var base = field('base');
+      var m = field('markup');
+      var d = field('disc');
+      var salary = field('salary') || 0;
+      var mp = field('pct');
+
+      var notes = [];
+      if (cost <= 0) notes.push('Заполните себестоимость: материалы, работы или накладные.');
+      if (base === null || base <= 0) notes.push('Укажите базовую цену (прайс).');
+      if (m === null) notes.push('Укажите минимально допустимую наценку.');
+
+      var hasCost = cost > 0;
+      var hasBase = base !== null && base > 0;
+      var minPrice = hasCost && m !== null ? cost * (1 + m / 100) : null;
+      var maxRub = minPrice !== null && hasBase ? base - minPrice : null;
+      var belowMin = maxRub !== null && round2(maxRub) < 0;
+      var maxPct = maxRub === null ? null : (belowMin ? 0 : floor2(maxRub / base * 100));
+
+      var discGiven = d !== null;
+      var priceD = hasBase ? base * (1 - (d || 0) / 100) : null;
+      var markupD = priceD !== null && hasCost ? (priceD - cost) / cost * 100 : null;
+      var ok = priceD !== null && minPrice !== null ? round2(priceD) >= round2(minPrice) : null;
+
+      var html = '';
+
+      if (notes.length) {
+        html += '<div class="dc-card dc-note"><b>Не хватает данных</b><ul><li>' + notes.join('</li><li>') + '</li></ul></div>';
+      }
+
+      // Себестоимость
+      html += '<div class="dc-card"><div class="dc-out-label">Итоговая себестоимость</div>' +
+        '<div class="dc-big">' + (hasCost ? money(cost) : '—') + '</div>';
+      if (hasCost) {
+        html += '<div class="dc-bar">' +
+          '<span style="width:' + (c.mat / cost * 100) + '%;background:var(--dc-blue)"></span>' +
+          '<span style="width:' + (c.work / cost * 100) + '%;background:var(--dc-orange)"></span>' +
+          '<span style="width:' + (c.over / cost * 100) + '%;background:var(--dc-gray)"></span></div>' +
+          '<div class="dc-legend"><span><i style="background:var(--dc-blue)"></i>Материалы</span>' +
+          '<span><i style="background:var(--dc-orange)"></i>Работы</span>' +
+          '<span><i style="background:var(--dc-gray)"></i>Накладные</span></div>';
+      }
+      html += '</div>';
+
+      // Минимальная цена и максимальная скидка
+      html += '<div class="dc-card dc-card-green"><div class="dc-out-label">Минимально допустимая цена</div>' +
+        '<div class="dc-big">' + money(minPrice) + '</div>' +
+        (m !== null ? '<div class="dc-sub">при наценке ' + pct(m) + ' на себестоимость</div>' : '');
+      if (maxRub !== null) {
+        if (belowMin) {
+          html += '<div class="dc-status dc-status-bad"><b>Прайс ниже допустимой цены, скидку давать нельзя</b>' +
+            'Прайс меньше минимальной цены на ' + money(-maxRub) + '. Максимальная скидка: 0%.</div>';
+        } else {
+          html += '<div class="dc-inner"><div class="dc-out-label">Максимальная скидка от прайса</div>' +
+            '<div class="dc-row"><span>В рублях</span><b>' + money(maxRub) + '</b></div>' +
+            '<div class="dc-row"><span>В процентах</span><b>' + pct(maxPct) + '</b></div></div>';
+        }
+      }
+      html += '</div>';
+
+      // Скидка менеджера
+      html += '<div class="dc-card"><div class="dc-out-label">Ваша скидка' + (discGiven ? ' ' + pct(d) : '') + '</div>';
+      if (!discGiven) {
+        html += '<div class="dc-sub">Укажите скидку, которую хотите дать, и нажмите «Рассчитать».</div>';
+      } else {
+        html += '<div class="dc-row"><span>Цена со скидкой</span><b>' + money(priceD) + '</b></div>' +
+          '<div class="dc-row"><span>Итоговая наценка</span><b>' + pct(markupD) + '</b></div>';
+        if (ok === true) {
+          html += '<div class="dc-status dc-status-ok"><b>Скидка допустима</b>' +
+            'Запас до минимальной цены: ' + money(priceD - minPrice) + '.</div>';
+        } else if (ok === false) {
+          html += '<div class="dc-status dc-status-bad"><b>Скидка ниже допустимой наценки</b>' +
+            'Скидка ' + pct(d) + ' уводит наценку до ' + pct(markupD) + ' при минимуме ' + pct(m) + '. ' +
+            'Цена ниже допустимой на ' + money(minPrice - priceD) + '. ' +
+            (belowMin ? 'Скидку по этому прайсу давать нельзя.' : 'Максимум — ' + pct(maxPct) + '.') + '</div>';
+        }
+      }
+      html += '</div>';
+
+      // Менеджер
+      html += '<div class="dc-card"><div class="dc-out-label">Зарплата менеджера</div>';
+      if (mp === null || !hasBase) {
+        html += '<div class="dc-sub">Укажите прайс и процент менеджера от продажи.</div>';
+      } else {
+        var b0 = base * mp / 100;
+        var bD = priceD * mp / 100;
+        html += '<div class="dc-row"><span>Получите без скидки</span><b>' + money(b0) + '</b></div>' +
+          '<div class="dc-row"><span>Получите со скидкой' + (discGiven ? ' ' + pct(d) : '') + '</span><b>' + money(bD) + '</b></div>' +
+          '<div class="dc-sep"></div>' +
+          '<div class="dc-row"><span>Доход за месяц без скидки</span><b>' + money(salary + b0) + '</b></div>' +
+          '<div class="dc-row"><span>Доход за месяц со скидкой</span><b>' + money(salary + bD) + '</b></div>' +
+          '<div class="dc-sub">Оклад ' + money(salary) + ' + процент с этой сделки</div>';
+      }
+      html += '</div>';
+
+      results.innerHTML = '<div class="dc-out">' + html + '</div>';
+      calculated = true;
+      root.classList.remove('is-stale');
+      if (window.innerWidth <= 960 && results.scrollIntoView) {
+        results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
+    function reset() {
+      Array.prototype.forEach.call(root.querySelectorAll('[data-f]'), function (el) { el.value = ''; });
+      rowsWrap.innerHTML = '';
+      addRow();
+      results.innerHTML = emptyHtml;
+      calculated = false;
+      root.classList.remove('is-stale');
+      updateSums();
+    }
+
+    // ----- События -----
+    root.addEventListener('input', function (e) {
+      var t = e.target;
+      if (t.classList && t.classList.contains('dc-num')) sanitize(t);
+      updateSums();
+      if (calculated) root.classList.add('is-stale');
+    });
+
+    root.addEventListener('click', function (e) {
+      var t = e.target.closest ? e.target.closest('button') : null;
+      if (!t || !root.contains(t)) return;
+      if (t.classList.contains('dc-add')) {
+        addRow().querySelector('[data-k="name"]').focus();
+        if (calculated) root.classList.add('is-stale');
+      } else if (t.classList.contains('dc-del')) {
+        var row = t.closest('.dc-mat-row');
+        if (rowsWrap.children.length > 1) {
+          row.parentNode.removeChild(row);
+        } else {
+          Array.prototype.forEach.call(row.querySelectorAll('input'), function (el) { el.value = ''; });
+        }
+        updateSums();
+        if (calculated) root.classList.add('is-stale');
+      } else if (t.classList.contains('dc-calc')) {
+        calculate();
+      } else if (t.classList.contains('dc-reset')) {
+        reset();
+      }
+    });
+
+    root.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && e.target.tagName === 'INPUT') {
+        e.preventDefault();
+        calculate();
+      }
+    });
+
+    addRow();
+    updateSums();
+  }
+})();
+</script>
+</div>
