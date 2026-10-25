@@ -471,7 +471,7 @@
       }
     }
 
-    // ----- Выгрузка в Excel: формулы и пояснения, без внешних библиотек -----
+    // ----- Выгрузка в Excel: формулы, пояснения и расчёт на цифрах, без внешних библиотек -----
     function downloadXlsx() {
       var z = function (v) { return v === null ? 0 : v; };
       var mats = [];
@@ -486,106 +486,240 @@
       var hours = z(field('hours')), rate = z(field('rate')), over = z(field('over'));
       var base = z(field('base')), m = z(field('markup')), d = z(field('disc'));
       var salary = z(field('salary')), mp = z(field('pct'));
+      var isMargin = mode === 'margin';
 
       // Значения для показа до пересчёта: те же формулы, что в ячейках
       var mat = 0;
       mats.forEach(function (r) { mat += r.qty * r.price; });
       var work = hours * rate, cost = mat + work + over;
-      var isMargin = mode === 'margin';
       var minP = isMargin ? (m < 100 ? cost / (1 - m / 100) : 0) : cost * (1 + m / 100);
       var maxRub = Math.max(0, base - minP);
       var maxPct = base > 0 ? Math.max(0, floor2((base - minP) / base * 100)) : 0;
       var pD = base * (1 - d / 100);
       var mk = cost > 0 ? round2((pD - cost) / cost * 100) : 0;
       var mg = pD > 0 ? round2((pD - cost) / pD * 100) : 0;
+      var ok = round2(pD) >= round2(minP);
       var badText = 'Скидка ниже допустимой ' + (isMargin ? 'маржи' : 'наценки');
-      var okText = round2(pD) >= round2(minP) ? 'Скидка допустима' : badText;
+      var okText = ok ? 'Скидка допустима' : badText;
+      var short = Math.max(0, minP - pD);
       var b0 = base * mp / 100, bD = pD * mp / 100;
 
       // Стили: 1 заголовок, 2 шапка, 3 текст, 4 ввод-число, 5 формула, 6 пояснение,
-      // 7 раздел, 8 итог-число, 9 ввод-текст, 10 итог-текст, 11 жирный текст, 12 примечание
+      // 7 раздел, 8 итог-число, 9 ввод-текст, 10 итог-текст, 11 жирный текст, 12 примечание, 13 расчёт-текст
       var rows = [], merges = [];
       function put(cells) { rows.push(cells); return rows.length; }
       function blank() { rows.push([]); }
-      function line(label, cell, explain) {
+      function wide(cell) { merges.push('A' + (rows.length + 1) + ':F' + (rows.length + 1)); return put([cell]); }
+
+      // Текст «расчёт на ваших цифрах»: строки и [адрес, значение] → формула с FIXED и готовый текст
+      function f2(n) { n = round2(n); if (n === 0) n = 0; return n.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+      function show(parts) {
+        return {
+          f: parts.map(function (p) {
+            if (typeof p === 'string') return '"' + p.replace(/"/g, '""') + '"';
+            if (p.raw) return p.raw;
+            return 'FIXED(' + p[0] + ',2)';
+          }).join('&'),
+          v: parts.map(function (p) {
+            if (typeof p === 'string') return p;
+            if (p.raw) return p.v;
+            return f2(p[1]);
+          }).join(''),
+          s: 13
+        };
+      }
+      function line(label, cell, explain, numbers) {
         var r = rows.length + 1;
         merges.push('A' + r + ':C' + r);
-        return put([{ v: label, s: cell.s === 8 || cell.s === 10 ? 11 : 3 }, { s: 3 }, { s: 3 }, cell, { v: explain, s: 6 }]);
+        return put([{ v: label, s: cell.s === 8 || cell.s === 10 ? 11 : 3 }, { s: 3 }, { s: 3 }, cell,
+          { v: explain, s: 6 }, numbers || { s: 13 }]);
       }
       function input(v) { return { v: v, s: 4 }; }
       function calc(f, v, total) { return { f: f, v: v, s: total ? (typeof v === 'string' ? 10 : 8) : 5 }; }
+      function head(title) {
+        put([{ v: title, s: 7 }]);
+        merges.push('A' + (rows.length + 1) + ':C' + (rows.length + 1));
+        put([{ v: 'Показатель', s: 2 }, { s: 2 }, { s: 2 }, { v: 'Значение', s: 2 },
+          { v: 'Как считается (в скобках — адрес ячейки)', s: 2 }, { v: 'Расчёт на ваших цифрах', s: 2 }]);
+      }
 
       put([{ v: 'Расчёт максимальной скидки', s: 1 }]);
       put([{ v: 'Дата расчёта: ' + new Date().toLocaleDateString('ru-RU'), s: 12 }]);
-      put([{ v: 'Жёлтые ячейки — исходные данные, их можно менять. Остальные считаются формулами: нажмите на ячейку, и формула появится в строке формул.', s: 12 }]);
+      blank();
+      put([{ v: 'Как читать этот файл', s: 7 }]);
+      merges.push('B5:F5', 'B6:F6', 'B7:F7', 'B8:F8', 'B9:F9');
+      put([{ v: 'Жёлтая ячейка', s: 9 }, { v: 'Исходные данные из калькулятора. Их можно менять — всё остальное пересчитается само.', s: 3 }]);
+      put([{ v: 'Зелёная ячейка', s: 10 }, { v: 'Главные итоги.', s: 3 }]);
+      put([{ v: 'Столбец E', s: 11 }, { v: 'Как считается словами. В скобках адрес ячейки, откуда берётся число: (D19) — столбец D, строка 19.', s: 3 }]);
+      put([{ v: 'Столбец F', s: 11 }, { v: 'Та же формула, но с вашими числами — можно проверить на обычном калькуляторе.', s: 3 }]);
+      put([{ v: 'Формула ячейки', s: 11 }, { v: 'Нажмите на любую ячейку в столбце D — формула появится в строке формул над таблицей. Что значат слова — на листе «Что значат слова».', s: 3 }]);
       blank();
 
       put([{ v: '1. Комплектующие (материалы)', s: 7 }]);
-      put([{ v: 'Наименование', s: 2 }, { v: 'Кол-во', s: 2 }, { v: 'Цена за ед., ₽', s: 2 }, { v: 'Сумма, ₽', s: 2 }, { v: 'Как считается', s: 2 }]);
+      put([{ v: 'Наименование', s: 2 }, { v: 'Кол-во', s: 2 }, { v: 'Цена за ед., ₽', s: 2 }, { v: 'Сумма, ₽', s: 2 },
+        { v: 'Как считается (в скобках — адрес ячейки)', s: 2 }, { v: 'Расчёт на ваших цифрах', s: 2 }]);
       var first = rows.length + 1;
       mats.forEach(function (r) {
         var n = rows.length + 1;
-        put([{ v: r.name, s: 9 }, input(r.qty), input(r.price), calc('B' + n + '*C' + n, r.qty * r.price), { v: 'Количество × цена за единицу', s: 6 }]);
+        put([{ v: r.name, s: 9 }, input(r.qty), input(r.price), calc('B' + n + '*C' + n, r.qty * r.price),
+          { v: 'Количество (B' + n + ') × цена за единицу (C' + n + ')', s: 6 },
+          show([['B' + n, r.qty], ' × ', ['C' + n, r.price], ' = ', ['D' + n, r.qty * r.price]])]);
       });
       var last = rows.length;
-      var rMat = line('Итого материалы, ₽', calc('SUM(D' + first + ':D' + last + ')', mat, true), 'Сумма столбца «Сумма» по всем деталям');
+      var matParts = [];
+      for (var k = first; k <= last; k++) {
+        if (k > first) matParts.push(' + ');
+        matParts.push(['D' + k, mats[k - first].qty * mats[k - first].price]);
+      }
+      var rMat = rows.length + 1;
+      line('Итого материалы, ₽', calc('SUM(D' + first + ':D' + last + ')', mat, true),
+        'Сумма всех строк столбца «Сумма» (D' + first + (last > first ? '…D' + last : '') + ')',
+        show(matParts.concat([' = ', ['D' + rMat, mat]])));
       blank();
 
-      var head = function (title) {
-        put([{ v: title, s: 7 }]);
-        merges.push('A' + (rows.length + 1) + ':C' + (rows.length + 1));
-        put([{ v: 'Показатель', s: 2 }, { s: 2 }, { s: 2 }, { v: 'Значение', s: 2 }, { v: 'Как считается и откуда берётся', s: 2 }]);
-      };
-
-      head('2. Себестоимость');
-      var rH = line('Затраченное время, часов', input(hours), 'Вводится: поле «Затраченное время»');
-      var rR = line('Ставка специалиста, ₽/час', input(rate), 'Вводится: поле «Ставка специалиста»');
-      var rW = line('Работы, ₽', calc('D' + rH + '*D' + rR, work), 'Часы × ставка');
-      var rO = line('Накладные, ₽', input(over), 'Вводится: упаковка, логистика, свет');
-      var rM = line('Материалы, ₽', calc('D' + rMat, mat), 'Итог раздела 1');
-      var rC = line('Себестоимость, ₽', calc('D' + rM + '+D' + rW + '+D' + rO, cost, true), 'Материалы + работы + накладные');
+      head('2. Себестоимость — все затраты на изделие');
+      var rH = line('Затраченное время, часов', input(hours), 'Из калькулятора: «Затраченное время»');
+      var rR = line('Ставка специалиста, ₽/час', input(rate), 'Из калькулятора: «Ставка специалиста»');
+      var rW = rows.length + 1;
+      line('Работы, ₽', calc('D' + rH + '*D' + rR, work), 'Часы (D' + rH + ') × ставка (D' + rR + ')',
+        show([['D' + rH, hours], ' × ', ['D' + rR, rate], ' = ', ['D' + rW, work]]));
+      var rO = line('Накладные, ₽', input(over), 'Из калькулятора: упаковка, логистика, свет');
+      var rM = rows.length + 1;
+      line('Материалы, ₽', calc('D' + rMat, mat), 'Берётся из итога раздела 1 (D' + rMat + ')',
+        show([['D' + rM, mat]]));
+      var rC = rows.length + 1;
+      line('Себестоимость, ₽', calc('D' + rM + '+D' + rW + '+D' + rO, cost, true),
+        'Материалы (D' + rM + ') + работы (D' + rW + ') + накладные (D' + rO + ')',
+        show([['D' + rM, mat], ' + ', ['D' + rW, work], ' + ', ['D' + rO, over], ' = ', ['D' + rC, cost]]));
       blank();
 
       head('3. Минимальная цена и максимальная скидка');
       line('Способ расчёта', { v: isMargin ? 'Маржа' : 'Наценка', s: 10 },
         isMargin ? 'Маржа — доля заработка в цене продажи. Формулы ниже построены под этот способ'
                  : 'Наценка — процент сверху к себестоимости. Формулы ниже построены под этот способ');
-      var rB = line('Базовая цена (прайс), ₽', input(base), 'Вводится: цена по прайсу до скидки');
+      var rB = line('Базовая цена (прайс), ₽', input(base), 'Из калькулятора: цена по прайсу до скидки');
       var rMk = line('Минимально допустимая ' + (isMargin ? 'маржа' : 'наценка') + ', %', input(m),
-        isMargin ? 'Вводится. Маржа считается от цены продажи' : 'Вводится. Наценка считается на себестоимость');
-      var rMin = isMargin
-        ? line('Минимально допустимая цена, ₽', calc('IF(D' + rMk + '<100,D' + rC + '/(1-D' + rMk + '/100),0)', minP, true),
-            'Себестоимость / (1 − маржа / 100). При марже 20% себестоимость — это 80% цены. Дешевле этой цены продавать нельзя')
-        : line('Минимально допустимая цена, ₽', calc('D' + rC + '*(1+D' + rMk + '/100)', minP, true),
-            'Себестоимость × (1 + наценка / 100). Дешевле этой цены продавать нельзя');
+        isMargin ? 'Из калькулятора. Маржа считается от цены продажи' : 'Из калькулятора. Наценка считается на себестоимость');
+      var rMin = rows.length + 1;
+      if (isMargin) {
+        line('Минимально допустимая цена, ₽', calc('IF(D' + rMk + '<100,D' + rC + '/(1-D' + rMk + '/100),0)', minP, true),
+          'Себестоимость (D' + rC + ') / (1 − маржа (D' + rMk + ') / 100). При марже 20% себестоимость — это 80% цены, ' +
+          'поэтому делим на 0,8. Дешевле этой цены продавать нельзя',
+          show([['D' + rC, cost], ' / (1 − ', ['D' + rMk, m], ' / 100) = ', ['D' + rMin, minP]]));
+      } else {
+        line('Минимально допустимая цена, ₽', calc('D' + rC + '*(1+D' + rMk + '/100)', minP, true),
+          'Себестоимость (D' + rC + ') × (1 + наценка (D' + rMk + ') / 100). При наценке 20% это себестоимость × 1,2. ' +
+          'Дешевле этой цены продавать нельзя',
+          show([['D' + rC, cost], ' × (1 + ', ['D' + rMk, m], ' / 100) = ', ['D' + rMin, minP]]));
+      }
+      var rMr = rows.length + 1;
       line('Максимальная скидка, ₽', calc('MAX(0,D' + rB + '-D' + rMin + ')', maxRub),
-        'Прайс − минимальная цена. Если прайс ниже минимальной цены, скидка 0');
+        'Прайс (D' + rB + ') − минимальная цена (D' + rMin + '). Если прайс ниже минимальной цены, скидка 0',
+        show([['D' + rB, base], ' − ', ['D' + rMin, minP], ' = ', ['D' + rMr, maxRub],
+          { raw: 'IF(D' + rB + '<D' + rMin + '," (прайс ниже минимальной цены, поэтому 0)","")',
+            v: base < minP ? ' (прайс ниже минимальной цены, поэтому 0)' : '' }]));
+      var rMp = rows.length + 1;
       line('Максимальная скидка, %', calc('IF(D' + rB + '>0,MAX(0,ROUNDDOWN((D' + rB + '-D' + rMin + ')/D' + rB + '*100,2)),0)', maxPct, true),
-        '(Прайс − минимальная цена) / прайс × 100. Округление вниз до сотых, чтобы не перейти границу');
+        'Максимальная скидка в рублях (D' + rMr + ') / прайс (D' + rB + ') × 100. Округление вниз до сотых, чтобы не перейти границу',
+        show([['D' + rMr, maxRub], ' / ', ['D' + rB, base], ' × 100 = ', ['D' + rMp, maxPct], '%']));
       blank();
 
       head('4. Скидка, которую хочу дать');
-      var rD = line('Скидка, %', input(d), 'Вводится: поле «Скидка, которую хочу дать»');
-      var rP = line('Цена со скидкой, ₽', calc('D' + rB + '*(1-D' + rD + '/100)', pD, true), 'Прайс × (1 − скидка / 100)');
-      line('Итоговая наценка, %', calc('IF(D' + rC + '>0,ROUND((D' + rP + '-D' + rC + ')/D' + rC + '*100,2),0)', mk),
-        '(Цена со скидкой − себестоимость) / себестоимость × 100. Заработок в процентах от затрат');
-      line('Итоговая маржа, %', calc('IF(D' + rP + '>0,ROUND((D' + rP + '-D' + rC + ')/D' + rP + '*100,2),0)', mg),
-        '(Цена со скидкой − себестоимость) / цена со скидкой × 100. Заработок в процентах от цены');
+      var rD = line('Скидка, %', input(d), 'Из калькулятора: «Скидка, которую хочу дать»');
+      var rSk = rows.length + 1;
+      line('Скидка, ₽', calc('D' + rB + '*D' + rD + '/100', base * d / 100),
+        'Прайс (D' + rB + ') × скидка (D' + rD + ') / 100',
+        show([['D' + rB, base], ' × ', ['D' + rD, d], ' / 100 = ', ['D' + rSk, base * d / 100]]));
+      var rP = rows.length + 1;
+      line('Цена со скидкой, ₽', calc('D' + rB + '-D' + rSk, pD, true),
+        'Прайс (D' + rB + ') − скидка в рублях (D' + rSk + ')',
+        show([['D' + rB, base], ' − ', ['D' + rSk, base * d / 100], ' = ', ['D' + rP, pD]]));
+      var rZ = rows.length + 1;
+      line('Заработок с этой цены, ₽', calc('D' + rP + '-D' + rC, pD - cost),
+        'Цена со скидкой (D' + rP + ') − себестоимость (D' + rC + ')',
+        show([['D' + rP, pD], ' − ', ['D' + rC, cost], ' = ', ['D' + rZ, pD - cost]]));
+      var rMk2 = rows.length + 1;
+      line('Итоговая наценка, %', calc('IF(D' + rC + '>0,ROUND(D' + rZ + '/D' + rC + '*100,2),0)', mk),
+        'Заработок (D' + rZ + ') / себестоимость (D' + rC + ') × 100. Сколько процентов сверху к затратам',
+        show([['D' + rZ, pD - cost], ' / ', ['D' + rC, cost], ' × 100 = ', ['D' + rMk2, mk], '%']));
+      var rMg2 = rows.length + 1;
+      line('Итоговая маржа, %', calc('IF(D' + rP + '>0,ROUND(D' + rZ + '/D' + rP + '*100,2),0)', mg),
+        'Заработок (D' + rZ + ') / цена со скидкой (D' + rP + ') × 100. Какая доля цены — ваш заработок',
+        show([['D' + rZ, pD - cost], ' / ', ['D' + rP, pD], ' × 100 = ', ['D' + rMg2, mg], '%']));
+      var rOk = rows.length + 1;
       line('Проверка', calc('IF(ROUND(D' + rP + ',2)>=ROUND(D' + rMin + ',2),"Скидка допустима","' + badText + '")', okText, true),
-        'Цена со скидкой сравнивается с минимально допустимой ценой');
-      line('Не хватает до минимальной цены, ₽', calc('MAX(0,D' + rMin + '-D' + rP + ')', Math.max(0, minP - pD)),
-        'Минимальная цена − цена со скидкой. 0, если скидка допустима');
+        'Цена со скидкой (D' + rP + ') сравнивается с минимально допустимой ценой (D' + rMin + ')',
+        show([['D' + rP, pD],
+          { raw: 'IF(ROUND(D' + rP + ',2)>=ROUND(D' + rMin + ',2)," не меньше "," меньше ")', v: ok ? ' не меньше ' : ' меньше ' },
+          ['D' + rMin, minP]]));
+      var rSh = rows.length + 1;
+      line('Не хватает до минимальной цены, ₽', calc('MAX(0,D' + rMin + '-D' + rP + ')', short),
+        'Минимальная цена (D' + rMin + ') − цена со скидкой (D' + rP + '). 0, если скидка допустима',
+        show([{ raw: 'IF(D' + rSh + '>0,FIXED(D' + rMin + ',2)&" − "&FIXED(D' + rP + ',2)&" = "&FIXED(D' + rSh + ',2),"0 — скидка допустима")',
+          v: short > 0 ? f2(minP) + ' − ' + f2(pD) + ' = ' + f2(short) : '0 — скидка допустима' }]));
       blank();
 
       head('5. Зарплата менеджера');
-      var rS = line('Оклад, ₽/мес', input(salary), 'Вводится: поле «Оклад»');
-      var rPc = line('Процент от суммы продажи, %', input(mp), 'Вводится: поле «Процент от суммы продажи»');
-      var r0 = line('Получит без скидки, ₽', calc('D' + rB + '*D' + rPc + '/100', b0, true), 'Прайс × процент / 100');
-      var r1 = line('Получит со скидкой, ₽', calc('D' + rP + '*D' + rPc + '/100', bD, true), 'Цена со скидкой × процент / 100');
-      line('Доход за месяц без скидки, ₽', calc('D' + rS + '+D' + r0, salary + b0), 'Оклад + процент без скидки');
-      line('Доход за месяц со скидкой, ₽', calc('D' + rS + '+D' + r1, salary + bD), 'Оклад + процент со скидкой');
+      var rS = line('Оклад, ₽/мес', input(salary), 'Из калькулятора: «Оклад»');
+      var rPc = line('Процент от суммы продажи, %', input(mp), 'Из калькулятора: «Процент от суммы продажи»');
+      var r0 = rows.length + 1;
+      line('Получит без скидки, ₽', calc('D' + rB + '*D' + rPc + '/100', b0, true),
+        'Прайс (D' + rB + ') × процент (D' + rPc + ') / 100',
+        show([['D' + rB, base], ' × ', ['D' + rPc, mp], ' / 100 = ', ['D' + r0, b0]]));
+      var r1 = rows.length + 1;
+      line('Получит со скидкой, ₽', calc('D' + rP + '*D' + rPc + '/100', bD, true),
+        'Цена со скидкой (D' + rP + ') × процент (D' + rPc + ') / 100',
+        show([['D' + rP, pD], ' × ', ['D' + rPc, mp], ' / 100 = ', ['D' + r1, bD]]));
+      var r2 = rows.length + 1;
+      line('Доход за месяц без скидки, ₽', calc('D' + rS + '+D' + r0, salary + b0),
+        'Оклад (D' + rS + ') + процент без скидки (D' + r0 + ')',
+        show([['D' + rS, salary], ' + ', ['D' + r0, b0], ' = ', ['D' + r2, salary + b0]]));
+      var r3 = rows.length + 1;
+      line('Доход за месяц со скидкой, ₽', calc('D' + rS + '+D' + r1, salary + bD),
+        'Оклад (D' + rS + ') + процент со скидкой (D' + r1 + ')',
+        show([['D' + rS, salary], ' + ', ['D' + r1, bD], ' = ', ['D' + r3, salary + bD]]));
+      blank();
 
-      var blob = xlsxBlob(rows, merges);
+      put([{ v: '6. Вывод простыми словами', s: 7 }]);
+      function say(parts) { var c = show(parts); c.s = 10; wide(c); }
+      say(['Продавать дешевле ', ['D' + rMin, minP], ' ₽ нельзя — иначе заработок будет меньше ',
+        ['D' + rMk, m], isMargin ? '% от цены.' : '% сверху к себестоимости.']);
+      say(['Максимальная скидка от прайса — ', ['D' + rMp, maxPct], '%, это ', ['D' + rMr, maxRub], ' ₽.']);
+      say([{ raw: 'IF(ROUND(D' + rP + ',2)>=ROUND(D' + rMin + ',2),"Скидка "&FIXED(D' + rD + ',2)&"% допустима: клиент заплатит "&FIXED(D' + rP + ',2)&" ₽.",' +
+        '"Скидка "&FIXED(D' + rD + ',2)&"% слишком большая: цена "&FIXED(D' + rP + ',2)&" ₽ ниже минимальной на "&FIXED(D' + rSh + ',2)&" ₽.")',
+        v: ok ? 'Скидка ' + f2(d) + '% допустима: клиент заплатит ' + f2(pD) + ' ₽.'
+              : 'Скидка ' + f2(d) + '% слишком большая: цена ' + f2(pD) + ' ₽ ниже минимальной на ' + f2(short) + ' ₽.' }]);
+      say(['Менеджер получит ', ['D' + r0, b0], ' ₽ без скидки и ', ['D' + r1, bD], ' ₽ со скидкой.']);
+
+      // Второй лист — словарь
+      var dict = [], dictMerges = [];
+      dict.push([{ v: 'Что значат слова', s: 1 }]);
+      dict.push([]);
+      dict.push([{ v: 'Слово', s: 2 }, { v: 'Что это простыми словами', s: 2 }, { v: 'Пример', s: 2 }]);
+      [
+        ['Себестоимость', 'Все ваши затраты на изделие: материалы + работа + накладные. Сколько вы потратили, чтобы его сделать.',
+          'Материалы 70 ₽ + работа 20 ₽ + упаковка 10 ₽ = себестоимость 100 ₽'],
+        ['Заработок', 'Цена продажи минус себестоимость. То, что остаётся вам.', 'Продали за 120 ₽, потратили 100 ₽ — заработок 20 ₽'],
+        ['Наценка', 'Сколько процентов вы прибавили сверху к своим затратам. Считается от себестоимости.',
+          'Себестоимость 100 ₽ + наценка 20% (20 ₽) = цена 120 ₽'],
+        ['Маржа', 'Какая доля цены продажи — ваш заработок. Считается от цены продажи.',
+          'Цена 125 ₽, из неё 25 ₽ — заработок. 25 / 125 = 20% маржи'],
+        ['Почему 20% наценки ≠ 20% маржи', 'Проценты берутся от разных сумм: наценка — от затрат, маржа — от цены. Цена всегда больше затрат, поэтому маржа в процентах меньше.',
+          'Себестоимость 100 ₽, цена 120 ₽: наценка 20 / 100 = 20%, маржа 20 / 120 = 16,67%'],
+        ['Минимально допустимая цена', 'Самая низкая цена, при которой вы ещё зарабатываете столько, сколько решили. Дешевле продавать нельзя.',
+          'Себестоимость 100 ₽, минимальная наценка 20% → дешевле 120 ₽ не продаём'],
+        ['Прайс (базовая цена)', 'Цена до скидки, по которой вы обычно продаёте.', 'Прайс 150 ₽'],
+        ['Максимальная скидка', 'На сколько можно снизить прайс, чтобы не опуститься ниже минимальной цены.',
+          'Прайс 150 ₽, минимальная цена 120 ₽ → скидка до 30 ₽, это 30 / 150 = 20%'],
+        ['Скидка в процентах', 'Считается от прайса.', 'Скидка 10% от 150 ₽ = 15 ₽, клиент платит 135 ₽'],
+        ['Процент менеджера', 'Доля от суммы продажи, которую получает менеджер. Чем больше скидка, тем меньше сумма продажи и тем меньше он получает.',
+          '3% от 150 ₽ = 4,50 ₽; со скидкой 10%: 3% от 135 ₽ = 4,05 ₽']
+      ].forEach(function (r) { dict.push([{ v: r[0], s: 11 }, { v: r[1], s: 3 }, { v: r[2], s: 6 }]); });
+
+      var blob = xlsxBlob([
+        { name: 'Расчёт', rows: rows, merges: merges, cols: [30, 10, 15, 18, 55, 48] },
+        { name: 'Что значат слова', rows: dict, merges: dictMerges, cols: [30, 70, 60] }
+      ]);
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = 'raschet-skidki.xlsx';
@@ -598,9 +732,9 @@
       return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    function xlsxBlob(rows, merges) {
-      var COLS = 'ABCDE';
-      var sheetRows = rows.map(function (cells, i) {
+    function sheetXml(sh) {
+      var COLS = 'ABCDEF';
+      var sheetRows = sh.rows.map(function (cells, i) {
         var r = i + 1;
         var xml = cells.map(function (c, j) {
           var ref = COLS[j] + r, s = ' s="' + (c.s || 0) + '"';
@@ -615,69 +749,78 @@
         }).join('');
         return '<row r="' + r + '">' + xml + '</row>';
       }).join('');
-
-      var sheet = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
         '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-        '<cols><col min="1" max="1" width="30" customWidth="1"/><col min="2" max="2" width="10" customWidth="1"/>' +
-        '<col min="3" max="3" width="15" customWidth="1"/><col min="4" max="4" width="18" customWidth="1"/>' +
-        '<col min="5" max="5" width="70" customWidth="1"/></cols>' +
+        '<cols>' + sh.cols.map(function (w, i) {
+          return '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>';
+        }).join('') + '</cols>' +
         '<sheetData>' + sheetRows + '</sheetData>' +
-        '<mergeCells count="' + merges.length + '">' + merges.map(function (m) { return '<mergeCell ref="' + m + '"/>'; }).join('') + '</mergeCells>' +
+        (sh.merges.length ? '<mergeCells count="' + sh.merges.length + '">' +
+          sh.merges.map(function (m) { return '<mergeCell ref="' + m + '"/>'; }).join('') + '</mergeCells>' : '') +
         '</worksheet>';
+    }
 
+    function xlsxBlob(sheets) {
       var b = '<border><left style="thin"><color rgb="FFD1D5DB"/></left><right style="thin"><color rgb="FFD1D5DB"/></right>' +
         '<top style="thin"><color rgb="FFD1D5DB"/></top><bottom style="thin"><color rgb="FFD1D5DB"/></bottom><diagonal/></border>';
+      var wrap = '<alignment wrapText="1" vertical="center"/>';
       var styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
         '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-        '<fonts count="4"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font>' +
-        '<font><b/><sz val="14"/><name val="Calibri"/></font><font><i/><sz val="10"/><color rgb="FF6B7280"/><name val="Calibri"/></font></fonts>' +
+        '<fonts count="5"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font>' +
+        '<font><b/><sz val="14"/><name val="Calibri"/></font><font><i/><sz val="10"/><color rgb="FF6B7280"/><name val="Calibri"/></font>' +
+        '<font><sz val="11"/><color rgb="FF1D4ED8"/><name val="Calibri"/></font></fonts>' +
         '<fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>' +
         '<fill><patternFill patternType="solid"><fgColor rgb="FFFFF2CC"/></patternFill></fill>' +
         '<fill><patternFill patternType="solid"><fgColor rgb="FFF3F4F6"/></patternFill></fill>' +
-        '<fill><patternFill patternType="solid"><fgColor rgb="FFECFDF3"/></patternFill></fill></fills>' +
+        '<fill><patternFill patternType="solid"><fgColor rgb="FFDCFCE7"/></patternFill></fill></fills>' +
         '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>' + b + '</borders>' +
         '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-        '<cellXfs count="13">' +
+        '<cellXfs count="14">' +
         '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
         '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
-        '<xf numFmtId="0" fontId="1" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment wrapText="1" vertical="center"/></xf>' +
-        '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment wrapText="1" vertical="center"/></xf>' +
+        '<xf numFmtId="0" fontId="1" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">' + wrap + '</xf>' +
+        '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1">' + wrap + '</xf>' +
         '<xf numFmtId="4" fontId="0" fillId="2" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' +
         '<xf numFmtId="4" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' +
-        '<xf numFmtId="0" fontId="3" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment wrapText="1" vertical="center"/></xf>' +
+        '<xf numFmtId="0" fontId="3" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1">' + wrap + '</xf>' +
         '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
         '<xf numFmtId="4" fontId="1" fillId="4" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' +
-        '<xf numFmtId="0" fontId="0" fillId="2" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment wrapText="1" vertical="center"/></xf>' +
-        '<xf numFmtId="0" fontId="1" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment wrapText="1" vertical="center"/></xf>' +
-        '<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment wrapText="1" vertical="center"/></xf>' +
+        '<xf numFmtId="0" fontId="0" fillId="2" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1">' + wrap + '</xf>' +
+        '<xf numFmtId="0" fontId="1" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">' + wrap + '</xf>' +
+        '<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1">' + wrap + '</xf>' +
         '<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
+        '<xf numFmtId="0" fontId="4" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1">' + wrap + '</xf>' +
         '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
 
+      var R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
       var files = [
         ['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
           '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
           '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
           '<Default Extension="xml" ContentType="application/xml"/>' +
           '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
-          '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+          sheets.map(function (s, i) {
+            return '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
+          }).join('') +
           '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
           '</Types>'],
         ['_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
           '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-          '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
-          '</Relationships>'],
+          '<Relationship Id="rId1" Type="' + R + '/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
         ['xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-          '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
-          'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
-          '<sheets><sheet name="Расчёт" sheetId="1" r:id="rId1"/></sheets><calcPr calcId="0" fullCalcOnLoad="1"/></workbook>'],
+          '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="' + R + '"><sheets>' +
+          sheets.map(function (s, i) {
+            return '<sheet name="' + esc(s.name) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>';
+          }).join('') + '</sheets><calcPr calcId="0" fullCalcOnLoad="1"/></workbook>'],
         ['xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
           '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-          '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
-          '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
-          '</Relationships>'],
-        ['xl/worksheets/sheet1.xml', sheet],
+          sheets.map(function (s, i) {
+            return '<Relationship Id="rId' + (i + 1) + '" Type="' + R + '/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>';
+          }).join('') +
+          '<Relationship Id="rId' + (sheets.length + 1) + '" Type="' + R + '/styles" Target="styles.xml"/></Relationships>'],
         ['xl/styles.xml', styles]
       ];
+      sheets.forEach(function (s, i) { files.push(['xl/worksheets/sheet' + (i + 1) + '.xml', sheetXml(s)]); });
       return new Blob(zipStore(files), { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     }
 
