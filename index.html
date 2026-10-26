@@ -642,12 +642,13 @@
           f: parts.map(function (p) {
             if (typeof p === 'string') return '"' + p.replace(/"/g, '""') + '"';
             if (p.raw) return p.raw;
-            return 'FIXED(' + p[0] + ',' + (p[2] === 0 ? 0 : 2) + ')';
+            return 'FIXED(' + p[0] + ',' + (p[2] === undefined ? 2 : p[2]) + ')';
           }).join('&'),
           v: parts.map(function (p) {
             if (typeof p === 'string') return p;
             if (p.raw) return p.v;
-            return p[2] === 0 ? Math.round(p[1]).toLocaleString('ru-RU') : f2(p[1]);
+            if (p[2] === undefined) return f2(p[1]);
+            return p[1].toLocaleString('ru-RU', { minimumFractionDigits: p[2], maximumFractionDigits: p[2] });
           }).join(''),
           s: 13
         };
@@ -773,13 +774,13 @@
         line('Минимально допустимая цена за 1 шт, ₽',
           calc('IF(' + D(rRr) + '+' + D(rMk) + '<100,' + D(rC) + '/(1-(' + D(rRr) + '+' + D(rMk) + ')/100),0)', minP, true),
           'Себестоимость (D' + rC + ') / (1 − (расходы от цены (D' + rRr + ') + маржа (D' + rMk + ')) / 100). ' +
-          'Из цены уходят расходы и ваша маржа, остаток должен покрыть себестоимость. Дешевле продавать нельзя',
+          'Из цены уходят расходы и ваша маржа, остаток должен покрыть себестоимость. Дешевле продавать нельзя. По шагам — на листе «Разбор минимальной цены»',
           show([[D(rC), c.cost], ' / (1 − (', [D(rRr), c.r], ' + ', [D(rMk), c.m], ') / 100) = ', [D(rMin), minP]]));
       } else {
         line('Минимально допустимая цена за 1 шт, ₽',
           calc('IF(' + D(rRr) + '<100,' + D(rC) + '*(1+' + D(rMk) + '/100)/(1-' + D(rRr) + '/100),0)', minP, true),
           'Себестоимость (D' + rC + ') × (1 + наценка (D' + rMk + ') / 100) / (1 − расходы от цены (D' + rRr + ') / 100). ' +
-          'Сначала добавляем нужную прибыль, потом делим, потому что налог, комиссия и менеджер забирают часть цены. Дешевле продавать нельзя',
+          'Сначала добавляем нужную прибыль, потом делим, потому что налог, комиссия и менеджер забирают часть цены. Дешевле продавать нельзя. По шагам — на листе «Разбор минимальной цены»',
           show([[D(rC), c.cost], ' × (1 + ', [D(rMk), c.m], ' / 100) / (1 − ', [D(rRr), c.r], ' / 100) = ', [D(rMin), minP]]));
       }
       var rMr = next();
@@ -912,9 +913,184 @@
           '3% от 150 ₽ = 4,50 ₽; со скидкой 10%: 3% от 135 ₽ = 4,05 ₽']
       ].forEach(function (r) { dict.push([{ v: r[0], s: 11 }, { v: r[1], s: 3 }, { v: r[2], s: 6 }]); });
 
+      // Третий лист — разбор минимальной цены по шагам для маржи и наценки, на цифрах расчёта
+      var mr = [], mMerges = [];
+      function mput(cells) { mr.push(cells); return mr.length; }
+      function mline(label, cell, explain, numbers) {
+        return mput([{ v: label, s: cell.s === 8 || cell.s === 10 ? 11 : 3 }, cell, { v: explain, s: 6 }, numbers || { s: 13 }]);
+      }
+      function mhead(title) {
+        mr.push([]);
+        mput([{ v: title, s: 7 }]);
+        mput([{ v: 'Показатель', s: 2 }, { v: 'Значение', s: 2 }, { v: 'Как считается', s: 2 }, { v: 'На цифрах', s: 2 }]);
+      }
+      function mtext(text, s) { mMerges.push('A' + (mr.length + 1) + ':D' + (mr.length + 1)); mput([{ v: text, s: s || 3 }]); }
+      function mpart(title) { mr.push([]); mr.push([]); mtext(title, 1); }
+      var B = function (r) { return 'B' + r; };
+      var pv = c.m > 0 ? c.m : 20;            // процент прибыли для разбора
+
+      mput([{ v: 'Разбор минимальной цены', s: 1 }]);
+      mtext('Здесь по шагам показано, откуда берётся минимально допустимая цена — для маржи и для наценки. ' +
+        'Цифры взяты из вашего расчёта. Жёлтые ячейки можно менять — всё ниже пересчитается само.', 12);
+
+      mhead('Исходные данные');
+      var mC = mline('Себестоимость 1 шт, ₽', input(c.cost), 'Все затраты на одну штуку (лист «Расчёт», раздел 2)');
+      var mT = mline('Налог с выручки, %', input(c.tax), 'Берётся от цены продажи');
+      var mK = mline('Комиссия банка или маркетплейса, %', input(c.comm), 'Берётся от цены продажи');
+      var mG = mline('Процент менеджера, %', input(c.mp), 'Берётся от цены продажи');
+      var mE = mr.length + 1;
+      mline('Всего расходов от цены, %', calc(B(mT) + '+' + B(mK) + '+' + B(mG), c.r, true), 'Налог + комиссия + менеджер',
+        show([[B(mT), c.tax], ' + ', [B(mK), c.comm], ' + ', [B(mG), c.mp], ' = ', [B(mE), c.r], '%']));
+      var mM = mline('Нужная маржа, %', input(pv), isMargin ? 'Из калькулятора' : 'Для сравнения та же цифра, что у наценки');
+      var mN = mline('Нужная наценка, %', input(pv), isMargin ? 'Для сравнения та же цифра, что у маржи' : 'Из калькулятора');
+
+      // --- Маржа ---
+      var mgOut = c.r + pv, mgRest = 100 - mgOut;
+      var mgOne = mgRest > 0 ? c.cost / mgRest : 0, mgP = mgOne * 100;
+      var rMgP;
+      function marginPart() {
+        mpart('Маржа' + (isMargin ? ' (выбрана в калькуляторе)' : ''));
+        mtext('Маржа — чистая прибыль в процентах от цены продажи. Значит, и прибыль, и налог, и комиссия, и менеджер — это доли цены.', 3);
+
+        mhead('Шаг 1. Сколько процентов цены уходит');
+        var o = mr.length + 1;
+        mline('Уходит от цены, %', calc(B(mE) + '+' + B(mM), mgOut, true),
+          'Расходы от цены + маржа. Представьте любую цену как 100%: вот столько из неё заберут',
+          show([[B(mE), c.r], ' + ', [B(mM), pv], ' = ', [B(o), mgOut], '%']));
+
+        mhead('Шаг 2. Сколько процентов цены остаётся на себестоимость');
+        var rr = mr.length + 1;
+        mline('Остаётся на себестоимость, %', calc('100-' + B(o), mgRest, true),
+          '100% − то, что уходит. Эта часть цены и должна покрыть себестоимость',
+          show(['100 − ', [B(o), mgOut], ' = ', [B(rr), mgRest], '%']));
+
+        mhead('Шаг 3. Находим цену');
+        var one = mr.length + 1;
+        mline('1% цены, ₽', { f: 'IF(' + B(rr) + '>0,' + B(mC) + '/' + B(rr) + ',0)', v: mgOne, s: 14 },
+          'Себестоимость — это «остаётся»% цены. Делим себестоимость на этот процент — получаем 1% цены',
+          show([[B(mC), c.cost], ' / ', [B(rr), mgRest], ' = ', [B(one), mgOne, 4]]));
+        rMgP = mr.length + 1;
+        mline('Минимальная цена (100%), ₽', calc(B(one) + '*100', mgP, true), '1% цены × 100',
+          show([[B(one), mgOne, 4], ' × 100 = ', [B(rMgP), mgP]]));
+        var ps = mr.length + 1;
+        mline('То же одной формулой, ₽', calc('IF(' + B(rr) + '>0,' + B(mC) + '/(1-' + B(o) + '/100),0)', mgP),
+          'Себестоимость / (1 − уходит / 100). Так записано на листе «Расчёт» — это шаги 1–3 в одну строку',
+          show([[B(mC), c.cost], ' / (1 − ', [B(o), mgOut], ' / 100) = ', [B(ps), mgP]]));
+
+        mhead('Проверка: разбираем цену обратно');
+        var q1 = mline('Цена, ₽', calc(B(rMgP), mgP), 'Минимальная цена из шага 3');
+        var q2 = mline('− Налог, ₽', calc(B(q1) + '*' + B(mT) + '/100', mgP * c.tax / 100), 'Цена × налог / 100',
+          show([[B(q1), mgP], ' × ', [B(mT), c.tax], ' / 100 = ', [B(q1 + 1), mgP * c.tax / 100]]));
+        var q3 = mline('− Комиссия, ₽', calc(B(q1) + '*' + B(mK) + '/100', mgP * c.comm / 100), 'Цена × комиссия / 100',
+          show([[B(q1), mgP], ' × ', [B(mK), c.comm], ' / 100 = ', [B(q2 + 1), mgP * c.comm / 100]]));
+        var q4 = mline('− Менеджеру, ₽', calc(B(q1) + '*' + B(mG) + '/100', mgP * c.mp / 100), 'Цена × процент менеджера / 100',
+          show([[B(q1), mgP], ' × ', [B(mG), c.mp], ' / 100 = ', [B(q3 + 1), mgP * c.mp / 100]]));
+        var q5 = mline('− Ваша прибыль (маржа), ₽', calc(B(q1) + '*' + B(mM) + '/100', mgP * pv / 100), 'Цена × маржа / 100',
+          show([[B(q1), mgP], ' × ', [B(mM), pv], ' / 100 = ', [B(q4 + 1), mgP * pv / 100]]));
+        var q6 = mr.length + 1;
+        mline('= Остаётся на себестоимость, ₽', calc(B(q1) + '-' + B(q2) + '-' + B(q3) + '-' + B(q4) + '-' + B(q5), c.cost, true),
+          'Цена минус всё, что из неё уходит',
+          show([[B(q1), mgP], ' − ', [B(q2), mgP * c.tax / 100], ' − ', [B(q3), mgP * c.comm / 100], ' − ',
+            [B(q4), mgP * c.mp / 100], ' − ', [B(q5), mgP * pv / 100], ' = ', [B(q6), c.cost]]));
+        mline('Сходится?', calc('IF(ROUND(' + B(q6) + ',2)=ROUND(' + B(mC) + ',2),"Да: осталось ровно на себестоимость","Нет")',
+          'Да: осталось ровно на себестоимость', true), 'Остаток сравнивается с себестоимостью (B' + mC + ')');
+
+        mhead('Почему нельзя просто прибавить проценты к себестоимости');
+        var wP = c.cost * (1 + mgOut / 100), wL = wP * (1 - mgOut / 100);
+        var w1 = mr.length + 1;
+        mline('Себестоимость + все проценты сверху, ₽', calc(B(mC) + '*(1+' + B(o) + '/100)', wP),
+          'Так считают от себестоимости. Но налог, менеджер и маржа берутся от цены, а цена больше себестоимости',
+          show([[B(mC), c.cost], ' × (1 + ', [B(o), mgOut], ' / 100) = ', [B(w1), wP]]));
+        var w2 = mr.length + 1;
+        mline('Из такой цены останется на себестоимость, ₽', calc(B(w1) + '*(1-' + B(o) + '/100)', wL),
+          'От этой цены уйдут те же проценты — они больше, потому что считаются от большей суммы',
+          show([[B(w1), wP], ' × (1 − ', [B(o), mgOut], ' / 100) = ', [B(w2), wL]]));
+        var w3 = mr.length + 1;
+        mline('Не хватает до себестоимости, ₽', calc(B(mC) + '-' + B(w2), c.cost - wL, true),
+          'Столько потеряете с каждой штуки, если считать «просто прибавить»',
+          show([[B(mC), c.cost], ' − ', [B(w2), wL], ' = ', [B(w3), c.cost - wL]]));
+      }
+
+      // --- Наценка ---
+      var nkNeed = c.cost * (1 + pv / 100), nkRest = 100 - c.r;
+      var nkOne = nkRest > 0 ? nkNeed / nkRest : 0, nkP = nkOne * 100;
+      var rNkP;
+      function markupPart() {
+        mpart('Наценка' + (isMargin ? '' : ' (выбрана в калькуляторе)'));
+        mtext('Наценка — чистая прибыль в процентах от себестоимости. Прибыль считается от себестоимости, а налог, комиссия и менеджер всё равно берутся от цены.', 3);
+
+        mhead('Шаг 1. Сколько нужно получить на себестоимость и прибыль');
+        var nd = mr.length + 1;
+        mline('Нужно получить «чистыми», ₽', calc(B(mC) + '*(1+' + B(mN) + '/100)', nkNeed, true),
+          'Себестоимость × (1 + наценка / 100): покрыть затраты и заработать наценку сверху',
+          show([[B(mC), c.cost], ' × (1 + ', [B(mN), pv], ' / 100) = ', [B(nd), nkNeed]]));
+
+        mhead('Шаг 2. Сколько процентов цены уходит и сколько остаётся');
+        var rr = mr.length + 1;
+        mline('Остаётся от цены, %', calc('100-' + B(mE), nkRest, true),
+          '100% − расходы от цены (налог + комиссия + менеджер). Именно эта часть цены доходит до вас',
+          show(['100 − ', [B(mE), c.r], ' = ', [B(rr), nkRest], '%']));
+
+        mhead('Шаг 3. Находим цену');
+        var one = mr.length + 1;
+        mline('1% цены, ₽', { f: 'IF(' + B(rr) + '>0,' + B(nd) + '/' + B(rr) + ',0)', v: nkOne, s: 14 },
+          '«Нужно получить» — это «остаётся»% цены. Делим на этот процент — получаем 1% цены',
+          show([[B(nd), nkNeed], ' / ', [B(rr), nkRest], ' = ', [B(one), nkOne, 4]]));
+        rNkP = mr.length + 1;
+        mline('Минимальная цена (100%), ₽', calc(B(one) + '*100', nkP, true), '1% цены × 100',
+          show([[B(one), nkOne, 4], ' × 100 = ', [B(rNkP), nkP]]));
+        var ps = mr.length + 1;
+        mline('То же одной формулой, ₽', calc('IF(' + B(mE) + '<100,' + B(mC) + '*(1+' + B(mN) + '/100)/(1-' + B(mE) + '/100),0)', nkP),
+          'Себестоимость × (1 + наценка / 100) / (1 − расходы от цены / 100). Так записано на листе «Расчёт» — это шаги 1–3 в одну строку',
+          show([[B(mC), c.cost], ' × (1 + ', [B(mN), pv], ' / 100) / (1 − ', [B(mE), c.r], ' / 100) = ', [B(ps), nkP]]));
+
+        mhead('Проверка: разбираем цену обратно');
+        var q1 = mline('Цена, ₽', calc(B(rNkP), nkP), 'Минимальная цена из шага 3');
+        var q2 = mline('− Налог, ₽', calc(B(q1) + '*' + B(mT) + '/100', nkP * c.tax / 100), 'Цена × налог / 100',
+          show([[B(q1), nkP], ' × ', [B(mT), c.tax], ' / 100 = ', [B(q1 + 1), nkP * c.tax / 100]]));
+        var q3 = mline('− Комиссия, ₽', calc(B(q1) + '*' + B(mK) + '/100', nkP * c.comm / 100), 'Цена × комиссия / 100',
+          show([[B(q1), nkP], ' × ', [B(mK), c.comm], ' / 100 = ', [B(q2 + 1), nkP * c.comm / 100]]));
+        var q4 = mline('− Менеджеру, ₽', calc(B(q1) + '*' + B(mG) + '/100', nkP * c.mp / 100), 'Цена × процент менеджера / 100',
+          show([[B(q1), nkP], ' × ', [B(mG), c.mp], ' / 100 = ', [B(q3 + 1), nkP * c.mp / 100]]));
+        var q5 = mline('− Себестоимость, ₽', calc(B(mC), c.cost), 'Из исходных данных');
+        var pr = nkP * (1 - c.r / 100) - c.cost;
+        var q6 = mr.length + 1;
+        mline('= Чистая прибыль, ₽', calc(B(q1) + '-' + B(q2) + '-' + B(q3) + '-' + B(q4) + '-' + B(q5), pr, true),
+          'Цена минус всё, что из неё уходит, минус себестоимость',
+          show([[B(q1), nkP], ' − ', [B(q2), nkP * c.tax / 100], ' − ', [B(q3), nkP * c.comm / 100], ' − ',
+            [B(q4), nkP * c.mp / 100], ' − ', [B(q5), c.cost], ' = ', [B(q6), pr]]));
+        var q7 = mr.length + 1;
+        mline('Наценка = прибыль / себестоимость, %', calc('IF(' + B(mC) + '>0,' + B(q6) + '/' + B(mC) + '*100,0)', c.cost > 0 ? pr / c.cost * 100 : 0),
+          'Чистая прибыль / себестоимость × 100',
+          show([[B(q6), pr], ' / ', [B(mC), c.cost], ' × 100 = ', [B(q7), c.cost > 0 ? pr / c.cost * 100 : 0], '%']));
+        mline('Сходится?', calc('IF(ROUND(' + B(q7) + ',2)=ROUND(' + B(mN) + ',2),"Да: наценка ровно как нужно","Нет")',
+          'Да: наценка ровно как нужно', true), 'Получившаяся наценка сравнивается с нужной (B' + mN + ')');
+      }
+
+      if (isMargin) { marginPart(); markupPart(); } else { markupPart(); marginPart(); }
+
+      mpart('Сравнение: одна и та же цифра — разная цена');
+      mhead('Минимальная цена при наценке и при марже');
+      mline('При наценке, ₽', calc(B(rNkP), nkP), 'Из раздела «Наценка»');
+      mline('При марже, ₽', calc(B(rMgP), mgP), 'Из раздела «Маржа»');
+      var cd = mr.length + 1;
+      mline('Разница, ₽', calc(B(rMgP) + '-' + B(rNkP), mgP - nkP, true),
+        'Маржа — более высокая планка: проценты берутся от цены, а она больше себестоимости',
+        show([[B(rMgP), mgP], ' − ', [B(rNkP), nkP], ' = ', [B(cd), mgP - nkP]]));
+
+      mr.push([]);
+      mput([{ v: 'Правило, чтобы не забыть', s: 7 }]);
+      mtext('1. Налог, комиссия и процент менеджера всегда берутся от цены продажи — поэтому цену находим делением на ту долю, которая остаётся.');
+      mtext('2. Маржа тоже берётся от цены: сложите налог + комиссию + менеджера + маржу, вычтите из 100% — останется доля на себестоимость. Цена = себестоимость ÷ эту долю.');
+      mtext('   Пример: себестоимость 71 ₽, уходит 29%, остаётся 71% → 71 ÷ 0,71 = 100 ₽.');
+      mtext('3. Наценка берётся от себестоимости: сначала себестоимость × (1 + наценка), потом делим на долю, которая остаётся после налога, комиссии и менеджера.');
+      mtext('   Пример: себестоимость 100 ₽, наценка 20%, расходы от цены 10% → 120 ÷ 0,9 = 133,33 ₽.');
+      mtext('4. Одинаковые «20%» в марже дают цену выше, чем в наценке. Вводите ту цифру и тот способ, которыми на производстве задают минимальную прибыль.');
+
       var blob = xlsxBlob([
         { name: 'Расчёт', rows: rows, merges: merges, cols: [30, 10, 15, 18, 55, 52] },
-        { name: 'Что значат слова', rows: dict, merges: [], cols: [30, 70, 60] }
+        { name: 'Что значат слова', rows: dict, merges: [], cols: [30, 70, 60] },
+        { name: 'Разбор минимальной цены', rows: mr, merges: mMerges, cols: [42, 16, 62, 62] }
       ]);
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -970,8 +1146,9 @@
         '<fill><patternFill patternType="solid"><fgColor rgb="FFF3F4F6"/></patternFill></fill>' +
         '<fill><patternFill patternType="solid"><fgColor rgb="FFDCFCE7"/></patternFill></fill></fills>' +
         '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>' + b + '</borders>' +
+        '<numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.0000"/></numFmts>' +
         '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-        '<cellXfs count="14">' +
+        '<cellXfs count="15">' +
         '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
         '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
         '<xf numFmtId="0" fontId="1" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">' + wrap + '</xf>' +
@@ -986,6 +1163,7 @@
         '<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1">' + wrap + '</xf>' +
         '<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
         '<xf numFmtId="0" fontId="4" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1">' + wrap + '</xf>' +
+        '<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' +
         '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
 
       var R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
