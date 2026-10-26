@@ -11,6 +11,7 @@ HTML-блок для GetCourse: сотрудник производства вв
 | `tz.md` | Техническое задание с формулами и контрольным примером |
 | `ref/` | Референсы дизайна (скриншоты из Gemini), на GitHub не публикуются |
 | `block.html` | Готовый HTML-блок для вставки в GetCourse: HTML, стили и скрипт одним куском |
+| `kak-rabotaet.md` | Как работает калькулятор: история, заполнение, расчёт по шагам, Excel |
 | `publish.sh` | Публикация на GitHub: `bash publish.sh "что поменялось"` |
 
 GitHub: github.com/kalachevae68-gif/kalkulyator-skidki
