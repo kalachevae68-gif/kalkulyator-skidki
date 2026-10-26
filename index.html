@@ -14,7 +14,7 @@
   --dc-bg:#f3f4f6; --dc-card:#ffffff; --dc-text:#111827; --dc-muted:#6b7280; --dc-border:#e5e7eb;
   --dc-dark:#111827; --dc-green:#16a34a; --dc-green-dark:#15803d; --dc-green-bg:#ecfdf3;
   --dc-red:#dc2626; --dc-red-bg:#fef2f2; --dc-amber-bg:#fffbeb; --dc-amber:#92400e;
-  --dc-blue:#3b82f6; --dc-orange:#f59e0b; --dc-gray:#9ca3af;
+  --dc-blue:#3b82f6; --dc-orange:#f59e0b; --dc-gray:#9ca3af; --dc-slate:#64748b; --dc-purple:#8b5cf6;
   max-width:1100px; margin:0 auto; background:var(--dc-bg); color:var(--dc-text);
   border-radius:16px; overflow:hidden; text-align:left; font-size:15px; line-height:1.4;
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
@@ -33,6 +33,8 @@
 .discount-calc .dc-col{display:flex; flex-direction:column; gap:16px; min-width:0}
 .discount-calc .dc-pair{display:grid; grid-template-columns:1fr 1fr; gap:16px}
 .discount-calc .dc-results{position:sticky; top:16px; transition:opacity .2s}
+.discount-calc .dc-prod,.discount-calc .dc-goods{display:flex; flex-direction:column; gap:16px}
+.discount-calc.is-goods .dc-prod,.discount-calc:not(.is-goods) .dc-goods{display:none}
 
 /* ===== Карточки ===== */
 .discount-calc .dc-card{background:var(--dc-card); border:1px solid var(--dc-border); border-radius:14px;
@@ -47,6 +49,7 @@
 .discount-calc .dc-field:last-child,.discount-calc .dc-pair .dc-field{margin-bottom:0}
 .discount-calc .dc-label{display:block; font-size:13px; color:var(--dc-muted); margin-bottom:6px}
 .discount-calc .dc-hint{display:block; font-size:12px; color:var(--dc-muted); margin-top:4px}
+.discount-calc .dc-card-hint{font-size:12px; color:var(--dc-muted); margin-top:12px}
 .discount-calc input.dc-input{display:block; width:100%; height:44px; margin:0; padding:0 12px;
   border:1px solid #d1d5db; border-radius:10px; background:#fff; color:var(--dc-text);
   font:inherit; font-size:16px; box-shadow:none; outline:none; -webkit-appearance:none; appearance:none}
@@ -54,7 +57,7 @@
 .discount-calc input.dc-input::placeholder{color:#b0b6bf}
 .discount-calc input.dc-num{text-align:right; font-variant-numeric:tabular-nums}
 
-/* ===== Переключатель «Наценка / Маржа» ===== */
+/* ===== Переключатели ===== */
 .discount-calc .dc-seg{display:flex; gap:4px; padding:4px; background:#eef0f3; border-radius:10px}
 .discount-calc .dc-seg-btn{flex:1; height:40px; margin:0; border:0; border-radius:8px; background:transparent;
   color:var(--dc-muted); font:inherit; font-weight:600; cursor:pointer}
@@ -108,6 +111,11 @@
 
 .discount-calc .dc-row{display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:6px 0}
 .discount-calc .dc-row b{font-variant-numeric:tabular-nums; white-space:nowrap}
+.discount-calc .dc-row .dc-strong{font-weight:700}
+.discount-calc .dc-row-main b{color:var(--dc-green-dark); font-size:16px}
+.discount-calc .dc-row-main .dc-strong{color:var(--dc-green-dark)}
+.discount-calc .dc-row-loss .dc-strong{color:var(--dc-red)}
+.discount-calc .dc-row-loss b{color:var(--dc-red)}
 .discount-calc .dc-sep{height:1px; background:var(--dc-border); margin:6px 0}
 
 .discount-calc .dc-status{border-radius:12px; padding:12px 14px; margin-top:12px; font-size:14px}
@@ -127,6 +135,8 @@
   .discount-calc .dc-head{padding:16px}
   .discount-calc .dc-title{font-size:19px}
   .discount-calc .dc-pair{grid-template-columns:1fr}
+  .discount-calc .dc-pair .dc-field{margin-bottom:12px}
+  .discount-calc .dc-pair .dc-field:last-child{margin-bottom:0}
   .discount-calc .dc-card{padding:14px}
   .discount-calc .dc-big{font-size:28px}
   .discount-calc .dc-mat-head{display:none}
@@ -142,7 +152,7 @@
 
   <div class="dc-head">
     <h2 class="dc-title">Калькулятор скидки</h2>
-    <p class="dc-subtitle">Себестоимость, минимальная цена и максимальная скидка для клиента</p>
+    <p class="dc-subtitle">Себестоимость, минимальная цена, максимальная скидка и чистая прибыль</p>
   </div>
 
   <div class="dc-body">
@@ -152,38 +162,74 @@
       <div class="dc-col">
 
         <div class="dc-card">
-          <div class="dc-card-head">
-            <span class="dc-card-title">1. Комплектующие (материалы)</span>
-            <span class="dc-badge" data-sum="mat">0,00 ₽</span>
+          <div class="dc-card-head"><span class="dc-card-title">Что считаем</span></div>
+          <div class="dc-pair">
+            <div class="dc-field"><span class="dc-label">Вид расчёта</span>
+              <div class="dc-seg" role="group" aria-label="Вид расчёта">
+                <button type="button" class="dc-seg-btn is-active" data-kind="prod" aria-pressed="true">Производство</button>
+                <button type="button" class="dc-seg-btn" data-kind="goods" aria-pressed="false">Товар</button>
+              </div></div>
+            <label class="dc-field"><span class="dc-label">Количество в партии (заказе), шт</span>
+              <input class="dc-input dc-num" data-f="qty" data-int="1" inputmode="numeric" placeholder="1"></label>
           </div>
-          <div class="dc-mat-head"><span>Наименование</span><span>Кол-во</span><span>Цена за ед., ₽</span><span></span></div>
-          <div class="dc-mat-rows"></div>
-          <button type="button" class="dc-add">+ Добавить деталь</button>
         </div>
 
-        <div class="dc-pair">
+        <!-- Производство -->
+        <div class="dc-prod">
           <div class="dc-card">
             <div class="dc-card-head">
-              <span class="dc-card-title">2. Сборка / работы</span>
-              <span class="dc-badge" data-sum="work">0,00 ₽</span>
+              <span class="dc-card-title">Комплектующие на 1 изделие</span>
+              <span class="dc-badge" data-sum="mat">0,00 ₽</span>
             </div>
-            <label class="dc-field"><span class="dc-label">Затраченное время, часов</span>
-              <input class="dc-input dc-num" data-f="hours" inputmode="decimal" placeholder="0"></label>
-            <label class="dc-field"><span class="dc-label">Ставка специалиста, ₽/час</span>
-              <input class="dc-input dc-num" data-f="rate" inputmode="decimal" placeholder="0"></label>
+            <div class="dc-mat-head"><span>Наименование</span><span>Кол-во</span><span>Цена за ед., ₽</span><span></span></div>
+            <div class="dc-mat-rows"></div>
+            <button type="button" class="dc-add">+ Добавить деталь</button>
           </div>
-          <div class="dc-card">
-            <div class="dc-card-head"><span class="dc-card-title">3. Накладные</span></div>
-            <label class="dc-field"><span class="dc-label">Упаковка, логистика, свет, ₽</span>
-              <input class="dc-input dc-num" data-f="over" inputmode="decimal" placeholder="0"></label>
+
+          <div class="dc-pair">
+            <div class="dc-card">
+              <div class="dc-card-head">
+                <span class="dc-card-title">Работа на 1 изделие</span>
+                <span class="dc-badge" data-sum="work">0,00 ₽</span>
+              </div>
+              <label class="dc-field"><span class="dc-label">Затраченное время, часов</span>
+                <input class="dc-input dc-num" data-f="hours" inputmode="decimal" placeholder="0"></label>
+              <label class="dc-field"><span class="dc-label">Ставка специалиста, ₽/час</span>
+                <input class="dc-input dc-num" data-f="rate" inputmode="decimal" placeholder="0"></label>
+            </div>
+            <div class="dc-card">
+              <div class="dc-card-head"><span class="dc-card-title">Расходы на всю партию</span></div>
+              <label class="dc-field"><span class="dc-label">Накладные, ₽</span>
+                <input class="dc-input dc-num" data-f="over" inputmode="decimal" placeholder="0">
+                <span class="dc-hint">Упаковка, логистика, свет, наладка оборудования. Делятся на количество в партии</span></label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Товар -->
+        <div class="dc-goods">
+          <div class="dc-pair">
+            <div class="dc-card">
+              <div class="dc-card-head"><span class="dc-card-title">Товар, за 1 шт</span></div>
+              <label class="dc-field"><span class="dc-label">Закупочная цена, ₽</span>
+                <input class="dc-input dc-num" data-f="buy" inputmode="decimal" placeholder="0"></label>
+              <label class="dc-field"><span class="dc-label">Упаковка и маркировка, ₽</span>
+                <input class="dc-input dc-num" data-f="pack" inputmode="decimal" placeholder="0"></label>
+            </div>
+            <div class="dc-card">
+              <div class="dc-card-head"><span class="dc-card-title">Расходы на всю партию</span></div>
+              <label class="dc-field"><span class="dc-label">Доставка и прочие расходы, ₽</span>
+                <input class="dc-input dc-num" data-f="deliv" inputmode="decimal" placeholder="0">
+                <span class="dc-hint">Доставка до склада, оформление, хранение. Делятся на количество в партии</span></label>
+            </div>
           </div>
         </div>
 
         <div class="dc-card">
-          <div class="dc-card-head"><span class="dc-card-title">4. Цена и наценка</span></div>
-          <label class="dc-field"><span class="dc-label">Базовая цена (прайс), ₽</span>
+          <div class="dc-card-head"><span class="dc-card-title">Цена и минимальная прибыль</span></div>
+          <label class="dc-field"><span class="dc-label">Цена по прайсу за 1 шт, ₽</span>
             <input class="dc-input dc-num" data-f="base" inputmode="decimal" placeholder="например, 55 000"></label>
-          <div class="dc-field"><span class="dc-label">Как считать минимальный заработок</span>
+          <div class="dc-field"><span class="dc-label">Как считать минимальную прибыль</span>
             <div class="dc-seg" role="group" aria-label="Способ расчёта">
               <button type="button" class="dc-seg-btn is-active" data-mode="markup" aria-pressed="true">Наценка</button>
               <button type="button" class="dc-seg-btn" data-mode="margin" aria-pressed="false">Маржа</button>
@@ -196,7 +242,18 @@
         </div>
 
         <div class="dc-card">
-          <div class="dc-card-head"><span class="dc-card-title">5. Зарплата менеджера</span></div>
+          <div class="dc-card-head"><span class="dc-card-title">Расходы от цены продажи</span></div>
+          <div class="dc-pair">
+            <label class="dc-field"><span class="dc-label">Налог с выручки, %</span>
+              <input class="dc-input dc-num" data-f="tax" data-max="100" inputmode="decimal" placeholder="например, 6"></label>
+            <label class="dc-field"><span class="dc-label">Комиссия банка или маркетплейса, %</span>
+              <input class="dc-input dc-num" data-f="comm" data-max="100" inputmode="decimal" placeholder="0"></label>
+          </div>
+          <p class="dc-card-hint">Эти расходы берутся от цены продажи, поэтому чем выше цена, тем они больше. Процент менеджера из блока ниже учитывается автоматически.</p>
+        </div>
+
+        <div class="dc-card">
+          <div class="dc-card-head"><span class="dc-card-title">Зарплата менеджера</span></div>
           <div class="dc-pair">
             <label class="dc-field"><span class="dc-label">Оклад, ₽/мес</span>
               <input class="dc-input dc-num" data-f="salary" inputmode="decimal" placeholder="0"></label>
@@ -232,28 +289,39 @@
     var emptyHtml = results.innerHTML;
     var calculated = false;
     var mode = 'markup';
-
-    var MODE_TEXT = {
-      markup: { label: 'Минимально допустимая наценка, %',
-        hint: 'Наценка — процент сверху к себестоимости. Себестоимость 100 ₽ + наценка 20% = цена 120 ₽.' },
-      margin: { label: 'Минимально допустимая маржа, %',
-        hint: 'Маржа — доля заработка в цене продажи. Маржа 20% при себестоимости 100 ₽: цена 125 ₽, из неё 25 ₽ (20%) — заработок.' }
-    };
-    function setMode(m) {
-      mode = m === 'margin' ? 'margin' : 'markup';
-      Array.prototype.forEach.call(root.querySelectorAll('.dc-seg-btn'), function (b) {
-        var on = b.getAttribute('data-mode') === mode;
-        b.classList.toggle('is-active', on);
-        b.setAttribute('aria-pressed', on ? 'true' : 'false');
-      });
-      root.querySelector('.dc-m-label').textContent = MODE_TEXT[mode].label;
-      root.querySelector('.dc-m-hint').textContent = MODE_TEXT[mode].hint;
-    }
-    setMode('markup');
+    var kind = 'prod';
 
     var TRASH = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
       'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/>' +
       '<path d="M19 6l-1 14H6L5 6"/></svg>';
+
+    var MODE_TEXT = {
+      markup: { label: 'Минимально допустимая наценка, %',
+        hint: 'Наценка — чистая прибыль в процентах от себестоимости. Себестоимость 100 ₽, наценка 20% — после всех расходов остаётся 20 ₽.' },
+      margin: { label: 'Минимально допустимая маржа, %',
+        hint: 'Маржа — чистая прибыль в процентах от цены продажи. Цена 125 ₽, маржа 20% — после всех расходов остаётся 25 ₽.' }
+    };
+
+    function setSeg(attr, value) {
+      Array.prototype.forEach.call(root.querySelectorAll('[' + attr + ']'), function (b) {
+        var on = b.getAttribute(attr) === value;
+        b.classList.toggle('is-active', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    }
+    function setMode(m) {
+      mode = m === 'margin' ? 'margin' : 'markup';
+      setSeg('data-mode', mode);
+      root.querySelector('.dc-m-label').textContent = MODE_TEXT[mode].label;
+      root.querySelector('.dc-m-hint').textContent = MODE_TEXT[mode].hint;
+    }
+    function setKind(k) {
+      kind = k === 'goods' ? 'goods' : 'prod';
+      setSeg('data-kind', kind);
+      root.classList.toggle('is-goods', kind === 'goods');
+    }
+    setMode('markup');
+    setKind('prod');
 
     function addRow() {
       var row = document.createElement('div');
@@ -289,14 +357,16 @@
       if (n === 0) n = 0;
       return n.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + '%';
     }
+    function qtyText(n) { return n.toLocaleString('ru-RU', { maximumFractionDigits: 0 }) + ' шт'; }
 
     // Оставляем только цифры и один разделитель (отрицательные числа не вводятся)
     // и разбиваем целую часть пробелами по разрядам: 180000 → 180 000
     function sanitize(el) {
       var raw = el.value;
       var caret = el.selectionStart === null ? raw.length : el.selectionStart;
-      var keep = raw.slice(0, caret).replace(/[^\d.,]/g, '').length;
-      var v = raw.replace(/[^\d.,]/g, '');
+      var allowed = el.hasAttribute('data-int') ? /[^\d]/g : /[^\d.,]/g;
+      var keep = raw.slice(0, caret).replace(allowed, '').length;
+      var v = raw.replace(allowed, '');
       var i = v.search(/[.,]/);
       if (i !== -1) v = v.slice(0, i + 1) + v.slice(i + 1).replace(/[.,]/g, '');
       var max = el.getAttribute('data-max');
@@ -311,30 +381,93 @@
       if (document.activeElement === el && el.setSelectionRange) el.setSelectionRange(pos, pos);
     }
 
-    // ----- Суммы в заголовках карточек -----
-    function costParts() {
-      var mat = 0;
-      Array.prototype.forEach.call(rowsWrap.querySelectorAll('.dc-mat-row'), function (row) {
-        var q = num(row.querySelector('[data-k="qty"]')) || 0;
-        var p = num(row.querySelector('[data-k="price"]')) || 0;
-        mat += q * p;
-      });
-      var work = (field('hours') || 0) * (field('rate') || 0);
-      var over = field('over') || 0;
-      return { mat: mat, work: work, over: over, cost: mat + work + over };
-    }
-    function updateSums() {
-      var c = costParts();
-      root.querySelector('[data-sum="mat"]').textContent = money(c.mat);
-      root.querySelector('[data-sum="work"]').textContent = money(c.work);
+    // ----- Расчёт: все цифры в одном месте, ими пользуются и экран, и Excel -----
+    function compute() {
+      var z = function (v) { return v === null ? 0 : v; };
+      var c = { kind: kind, mode: mode, mats: [] };
+      var qRaw = field('qty');
+      c.n = qRaw === null || qRaw < 1 ? 1 : Math.floor(qRaw);
+
+      if (kind === 'prod') {
+        Array.prototype.forEach.call(rowsWrap.querySelectorAll('.dc-mat-row'), function (row) {
+          var name = row.querySelector('[data-k="name"]').value.trim();
+          var q = num(row.querySelector('[data-k="qty"]'));
+          var p = num(row.querySelector('[data-k="price"]'));
+          if (name || q !== null || p !== null) c.mats.push({ name: name, qty: z(q), price: z(p) });
+        });
+        c.mat = 0;
+        c.mats.forEach(function (r) { c.mat += r.qty * r.price; });
+        c.hours = z(field('hours')); c.rate = z(field('rate'));
+        c.work = c.hours * c.rate;
+        c.batch = z(field('over'));
+        c.batchUnit = c.batch / c.n;
+        c.parts = [
+          { name: 'Материалы', v: c.mat, color: 'var(--dc-blue)' },
+          { name: 'Работа', v: c.work, color: 'var(--dc-orange)' },
+          { name: 'Накладные', v: c.batchUnit, color: 'var(--dc-gray)' }
+        ];
+      } else {
+        c.buy = z(field('buy')); c.pack = z(field('pack'));
+        c.batch = z(field('deliv'));
+        c.batchUnit = c.batch / c.n;
+        c.parts = [
+          { name: 'Закупка', v: c.buy, color: 'var(--dc-blue)' },
+          { name: 'Упаковка', v: c.pack, color: 'var(--dc-orange)' },
+          { name: 'Доставка', v: c.batchUnit, color: 'var(--dc-gray)' }
+        ];
+      }
+      c.cost = 0;
+      c.parts.forEach(function (p) { c.cost += p.v; });
+
+      c.baseRaw = field('base'); c.base = z(c.baseRaw);
+      c.mRaw = field('markup'); c.m = z(c.mRaw);
+      c.dRaw = field('disc'); c.d = z(c.dRaw);
+      c.tax = z(field('tax')); c.comm = z(field('comm'));
+      c.pctRaw = field('pct'); c.mp = z(c.pctRaw);
+      c.salary = z(field('salary'));
+      c.r = c.tax + c.comm + c.mp;           // все расходы от цены, %
+
+      c.isMargin = mode === 'margin';
+      c.limitBad = c.isMargin ? c.r + c.m >= 100 : c.r >= 100;
+      c.minP = c.limitBad ? null
+        : (c.isMargin ? c.cost / (1 - (c.r + c.m) / 100) : c.cost * (1 + c.m / 100) / (1 - c.r / 100));
+
+      c.maxRub = c.minP === null ? null : c.base - c.minP;
+      c.belowMin = c.maxRub !== null && round2(c.maxRub) < 0;
+      c.maxPct = c.maxRub === null || c.base <= 0 ? null : (c.belowMin ? 0 : floor2(c.maxRub / c.base * 100));
+
+      c.pD = c.base * (1 - c.d / 100);
+      c.taxRub = c.pD * c.tax / 100;
+      c.commRub = c.pD * c.comm / 100;
+      c.mgrRub = c.pD * c.mp / 100;
+      c.profit = c.pD - c.cost - c.taxRub - c.commRub - c.mgrRub;
+      c.markupNet = c.cost > 0 ? c.profit / c.cost * 100 : null;
+      c.marginNet = c.pD > 0 ? c.profit / c.pD * 100 : null;
+      c.ok = c.minP === null ? null : round2(c.pD) >= round2(c.minP);
+      c.short = c.minP === null ? 0 : Math.max(0, c.minP - c.pD);
+
+      c.deal = c.pD * c.n;
+      c.profitDeal = c.profit * c.n;
+      c.b0 = c.base * c.n * c.mp / 100;
+      c.bD = c.pD * c.n * c.mp / 100;
+      return c;
     }
 
-    // ----- Расчёт -----
+    // ----- Суммы в заголовках карточек -----
+    function updateSums() {
+      var mat = 0;
+      Array.prototype.forEach.call(rowsWrap.querySelectorAll('.dc-mat-row'), function (row) {
+        mat += (num(row.querySelector('[data-k="qty"]')) || 0) * (num(row.querySelector('[data-k="price"]')) || 0);
+      });
+      root.querySelector('[data-sum="mat"]').textContent = money(mat);
+      root.querySelector('[data-sum="work"]').textContent = money((field('hours') || 0) * (field('rate') || 0));
+    }
+
     // ----- Сохранение введённого в браузере: после обновления страницы всё на месте -----
     var STORE_KEY = 'discount-calc-v1';
     function save() {
       try {
-        var st = { f: {}, rows: [], calc: calculated, mode: mode };
+        var st = { f: {}, rows: [], calc: calculated, mode: mode, kind: kind };
         Array.prototype.forEach.call(root.querySelectorAll('[data-f]'), function (el) {
           st.f[el.getAttribute('data-f')] = el.value;
         });
@@ -349,6 +482,7 @@
       try { st = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { return false; }
       if (!st || !st.f) return false;
       setMode(st.mode);
+      setKind(st.kind);
       Array.prototype.forEach.call(root.querySelectorAll('[data-f]'), function (el) {
         el.value = st.f[el.getAttribute('data-f')] || '';
       });
@@ -361,110 +495,112 @@
       return true;
     }
 
-    function calculate(noScroll) {
-      var c = costParts();
-      var cost = c.cost;
-      var base = field('base');
-      var m = field('markup');
-      var d = field('disc');
-      var salary = field('salary') || 0;
-      var mp = field('pct');
+    // ----- Вывод результатов -----
+    function bar(items) {
+      var total = 0;
+      items.forEach(function (p) { if (p.v > 0) total += p.v; });
+      if (total <= 0) return '';
+      return '<div class="dc-bar">' + items.map(function (p) {
+        return p.v > 0 ? '<span style="width:' + (p.v / total * 100) + '%;background:' + p.color + '"></span>' : '';
+      }).join('') + '</div><div class="dc-legend">' + items.map(function (p) {
+        return '<span><i style="background:' + p.color + '"></i>' + p.name + '</span>';
+      }).join('') + '</div>';
+    }
 
-      var isMargin = mode === 'margin';
-      var badMargin = isMargin && m !== null && m >= 100;
+    function calculate(noScroll) {
+      var c = compute();
+      var hasCost = c.cost > 0, hasBase = c.base > 0;
+      var many = c.n > 1;
 
       var notes = [];
-      if (cost <= 0) notes.push('Заполните себестоимость: материалы, работы или накладные.');
-      if (base === null || base <= 0) notes.push('Укажите базовую цену (прайс).');
-      if (m === null) notes.push('Укажите минимально допустимую ' + (isMargin ? 'маржу' : 'наценку') + '.');
-      if (badMargin) notes.push('Маржа должна быть меньше 100%: заработок не может быть больше всей цены.');
+      if (!hasCost) notes.push(c.kind === 'prod'
+        ? 'Заполните себестоимость: комплектующие, работу или накладные.'
+        : 'Заполните себестоимость: закупочную цену, упаковку или доставку.');
+      if (!hasBase) notes.push('Укажите цену по прайсу.');
+      if (c.mRaw === null) notes.push('Укажите минимально допустимую ' + (c.isMargin ? 'маржу' : 'наценку') + '.');
+      if (c.limitBad) notes.push(c.isMargin
+        ? 'Маржа вместе с налогом, комиссией и процентом менеджера должна быть меньше 100%: сейчас ' + pct(c.r + c.m) + '.'
+        : 'Налог, комиссия и процент менеджера вместе должны быть меньше 100%: сейчас ' + pct(c.r) + '.');
 
-      var hasCost = cost > 0;
-      var hasBase = base !== null && base > 0;
-      var minPrice = hasCost && m !== null && !badMargin
-        ? (isMargin ? cost / (1 - m / 100) : cost * (1 + m / 100)) : null;
-      var maxRub = minPrice !== null && hasBase ? base - minPrice : null;
-      var belowMin = maxRub !== null && round2(maxRub) < 0;
-      var maxPct = maxRub === null ? null : (belowMin ? 0 : floor2(maxRub / base * 100));
-
-      var discGiven = d !== null;
-      var priceD = hasBase ? base * (1 - (d || 0) / 100) : null;
-      var markupD = priceD !== null && hasCost ? (priceD - cost) / cost * 100 : null;
-      var marginD = priceD !== null && priceD > 0 && hasCost ? (priceD - cost) / priceD * 100 : null;
-      var resultD = isMargin ? marginD : markupD;
-      var ok = priceD !== null && minPrice !== null ? round2(priceD) >= round2(minPrice) : null;
-
+      var ready = hasCost && c.mRaw !== null && c.minP !== null;
       var html = '';
-
       if (notes.length) {
-        html += '<div class="dc-card dc-note"><b>Не хватает данных</b><ul><li>' + notes.join('</li><li>') + '</li></ul></div>';
+        html += '<div class="dc-card dc-note"><b>Проверьте данные</b><ul><li>' + notes.join('</li><li>') + '</li></ul></div>';
       }
 
       // Себестоимость
-      html += '<div class="dc-card"><div class="dc-out-label">Итоговая себестоимость</div>' +
-        '<div class="dc-big">' + (hasCost ? money(cost) : '—') + '</div>';
-      if (hasCost) {
-        html += '<div class="dc-bar">' +
-          '<span style="width:' + (c.mat / cost * 100) + '%;background:var(--dc-blue)"></span>' +
-          '<span style="width:' + (c.work / cost * 100) + '%;background:var(--dc-orange)"></span>' +
-          '<span style="width:' + (c.over / cost * 100) + '%;background:var(--dc-gray)"></span></div>' +
-          '<div class="dc-legend"><span><i style="background:var(--dc-blue)"></i>Материалы</span>' +
-          '<span><i style="background:var(--dc-orange)"></i>Работы</span>' +
-          '<span><i style="background:var(--dc-gray)"></i>Накладные</span></div>';
-      }
-      html += '</div>';
+      html += '<div class="dc-card"><div class="dc-out-label">Себестоимость 1 шт</div>' +
+        '<div class="dc-big">' + (hasCost ? money(c.cost) : '—') + '</div>' +
+        (many && hasCost ? '<div class="dc-sub">Партия ' + qtyText(c.n) + ': ' + money(c.cost * c.n) +
+          '. Расходы на партию ' + money(c.batch) + ' делятся на ' + qtyText(c.n) + '.</div>' : '') +
+        (hasCost ? bar(c.parts) : '') + '</div>';
 
       // Минимальная цена и максимальная скидка
-      html += '<div class="dc-card dc-card-green"><div class="dc-out-label">Минимально допустимая цена</div>' +
-        '<div class="dc-big">' + money(minPrice) + '</div>' +
-        (m !== null && !badMargin ? '<div class="dc-sub">' + (isMargin
-          ? 'при марже ' + pct(m) + ' от цены продажи'
-          : 'при наценке ' + pct(m) + ' на себестоимость') + '</div>' : '');
-      if (maxRub !== null) {
-        if (belowMin) {
+      html += '<div class="dc-card dc-card-green"><div class="dc-out-label">Минимально допустимая цена за 1 шт</div>' +
+        '<div class="dc-big">' + (ready ? money(c.minP) : '—') + '</div>';
+      if (ready) {
+        html += '<div class="dc-sub">Чистая прибыль ' + (c.isMargin ? pct(c.m) + ' от цены' : pct(c.m) + ' от себестоимости') +
+          ' после налога ' + pct(c.tax) + ', комиссии ' + pct(c.comm) + ' и менеджера ' + pct(c.mp) + '</div>';
+        if (hasBase && c.belowMin) {
           html += '<div class="dc-status dc-status-bad"><b>Прайс ниже допустимой цены, скидку давать нельзя</b>' +
-            'Прайс меньше минимальной цены на ' + money(-maxRub) + '. Максимальная скидка: 0%.</div>';
-        } else {
+            'Прайс меньше минимальной цены на ' + money(-c.maxRub) + '. Максимальная скидка: 0%.</div>';
+        } else if (hasBase) {
           html += '<div class="dc-inner"><div class="dc-out-label">Максимальная скидка от прайса</div>' +
-            '<div class="dc-row"><span>В рублях</span><b>' + money(maxRub) + '</b></div>' +
-            '<div class="dc-row"><span>В процентах</span><b>' + pct(maxPct) + '</b></div></div>';
+            '<div class="dc-row"><span>В рублях за 1 шт</span><b>' + money(c.maxRub) + '</b></div>' +
+            '<div class="dc-row"><span>В процентах</span><b>' + pct(c.maxPct) + '</b></div></div>';
         }
       }
       html += '</div>';
 
-      // Скидка менеджера
-      html += '<div class="dc-card"><div class="dc-out-label">Ваша скидка' + (discGiven ? ' ' + pct(d) : '') + '</div>';
-      if (!discGiven) {
-        html += '<div class="dc-sub">Укажите скидку, которую хотите дать, и нажмите «Рассчитать».</div>';
-      } else {
-        html += '<div class="dc-row"><span>Цена со скидкой</span><b>' + money(priceD) + '</b></div>' +
-          '<div class="dc-row"><span>Итоговая наценка</span><b>' + pct(markupD) + '</b></div>' +
-          '<div class="dc-row"><span>Итоговая маржа</span><b>' + pct(marginD) + '</b></div>';
-        if (ok === true) {
-          html += '<div class="dc-status dc-status-ok"><b>Скидка допустима</b>' +
-            'Запас до минимальной цены: ' + money(priceD - minPrice) + '.</div>';
-        } else if (ok === false) {
-          html += '<div class="dc-status dc-status-bad"><b>Скидка ниже допустимой ' + (isMargin ? 'маржи' : 'наценки') + '</b>' +
-            'Скидка ' + pct(d) + ' уводит ' + (isMargin ? 'маржу' : 'наценку') + ' до ' + pct(resultD) + ' при минимуме ' + pct(m) + '. ' +
-            'Цена ниже допустимой на ' + money(minPrice - priceD) + '. ' +
-            (belowMin ? 'Скидку по этому прайсу давать нельзя.' : 'Максимум — ' + pct(maxPct) + '.') + '</div>';
+      // Цена со скидкой и прибыль
+      if (hasBase && hasCost) {
+        var given = c.dRaw !== null && c.d > 0;
+        html += '<div class="dc-card"><div class="dc-out-label">' + (given ? 'Ваша скидка ' + pct(c.d) : 'Продажа без скидки') + '</div>' +
+          '<div class="dc-row"><span>' + (given ? 'Цена со скидкой' : 'Цена') + ' за 1 шт</span><b>' + money(c.pD) + '</b></div>' +
+          (many ? '<div class="dc-row"><span>Сумма сделки за ' + qtyText(c.n) + '</span><b>' + money(c.deal) + '</b></div>' : '') +
+          '<div class="dc-sep"></div>' +
+          '<div class="dc-out-label">Куда уходят деньги с 1 шт</div>' +
+          '<div class="dc-row"><span>Себестоимость</span><b>' + money(c.cost) + '</b></div>' +
+          '<div class="dc-row"><span>Налог ' + pct(c.tax) + '</span><b>' + money(c.taxRub) + '</b></div>' +
+          '<div class="dc-row"><span>Комиссия ' + pct(c.comm) + '</span><b>' + money(c.commRub) + '</b></div>' +
+          '<div class="dc-row"><span>Менеджеру ' + pct(c.mp) + '</span><b>' + money(c.mgrRub) + '</b></div>' +
+          '<div class="dc-row ' + (c.profit < 0 ? 'dc-row-loss' : 'dc-row-main') + '"><span class="dc-strong">Чистая прибыль с 1 шт</span><b>' + money(c.profit) + '</b></div>' +
+          (many ? '<div class="dc-row ' + (c.profit < 0 ? 'dc-row-loss' : 'dc-row-main') + '"><span class="dc-strong">Чистая прибыль со сделки</span><b>' + money(c.profitDeal) + '</b></div>' : '') +
+          bar([
+            { name: 'Себестоимость', v: c.cost, color: 'var(--dc-slate)' },
+            { name: 'Налог', v: c.taxRub, color: 'var(--dc-orange)' },
+            { name: 'Комиссия', v: c.commRub, color: 'var(--dc-purple)' },
+            { name: 'Менеджер', v: c.mgrRub, color: 'var(--dc-blue)' },
+            { name: 'Прибыль', v: c.profit, color: 'var(--dc-green)' }
+          ]) +
+          '<div class="dc-sep"></div>' +
+          '<div class="dc-row"><span>Наценка (прибыль / себестоимость)</span><b>' + pct(c.markupNet) + '</b></div>' +
+          '<div class="dc-row"><span>Маржа (прибыль / цена)</span><b>' + pct(c.marginNet) + '</b></div>';
+        if (c.ok === true) {
+          html += '<div class="dc-status dc-status-ok"><b>' + (given ? 'Скидка допустима' : 'Цена допустима') + '</b>' +
+            'Запас до минимальной цены: ' + money(c.pD - c.minP) + ' за 1 шт.</div>';
+        } else if (c.ok === false) {
+          var res = c.isMargin ? c.marginNet : c.markupNet;
+          html += '<div class="dc-status dc-status-bad"><b>' + (c.profit < 0 ? 'Сделка в убыток' : (given ? 'Скидка' : 'Цена') +
+            ' ниже допустимой ' + (c.isMargin ? 'маржи' : 'наценки')) + '</b>' +
+            (given ? 'Скидка ' + pct(c.d) + ' уводит ' : 'Цена уводит ') + (c.isMargin ? 'маржу' : 'наценку') + ' до ' + pct(res) +
+            ' при минимуме ' + pct(c.m) + '. Цена ниже допустимой на ' + money(c.short) + ' за 1 шт. ' +
+            (c.belowMin ? 'Скидку по этому прайсу давать нельзя.' : 'Максимум — ' + pct(c.maxPct) + '.') + '</div>';
         }
+        html += '</div>';
       }
-      html += '</div>';
 
       // Менеджер
       html += '<div class="dc-card"><div class="dc-out-label">Зарплата менеджера</div>';
-      if (mp === null || !hasBase) {
+      if (c.pctRaw === null || !hasBase) {
         html += '<div class="dc-sub">Укажите прайс и процент менеджера от продажи.</div>';
       } else {
-        var b0 = base * mp / 100;
-        var bD = priceD * mp / 100;
-        html += '<div class="dc-row"><span>Получите без скидки</span><b>' + money(b0) + '</b></div>' +
-          '<div class="dc-row"><span>Получите со скидкой' + (discGiven ? ' ' + pct(d) : '') + '</span><b>' + money(bD) + '</b></div>' +
+        html += '<div class="dc-row"><span>Получите без скидки' + (many ? ' за ' + qtyText(c.n) : '') + '</span><b>' + money(c.b0) + '</b></div>' +
+          '<div class="dc-row"><span>Получите со скидкой' + (c.d > 0 ? ' ' + pct(c.d) : '') + '</span><b>' + money(c.bD) + '</b></div>' +
           '<div class="dc-sep"></div>' +
-          '<div class="dc-row"><span>Доход за месяц без скидки</span><b>' + money(salary + b0) + '</b></div>' +
-          '<div class="dc-row"><span>Доход за месяц со скидкой</span><b>' + money(salary + bD) + '</b></div>' +
-          '<div class="dc-sub">Оклад ' + money(salary) + ' + процент с этой сделки</div>';
+          '<div class="dc-row"><span>Доход за месяц без скидки</span><b>' + money(c.salary + c.b0) + '</b></div>' +
+          '<div class="dc-row"><span>Доход за месяц со скидкой</span><b>' + money(c.salary + c.bD) + '</b></div>' +
+          '<div class="dc-sub">Оклад ' + money(c.salary) + ' + процент с этой сделки</div>';
       }
       html += '</div>';
 
@@ -481,36 +617,17 @@
 
     // ----- Выгрузка в Excel: формулы, пояснения и расчёт на цифрах, без внешних библиотек -----
     function downloadXlsx() {
-      var z = function (v) { return v === null ? 0 : v; };
-      var mats = [];
-      Array.prototype.forEach.call(rowsWrap.querySelectorAll('.dc-mat-row'), function (row) {
-        var name = row.querySelector('[data-k="name"]').value.trim();
-        var q = num(row.querySelector('[data-k="qty"]'));
-        var p = num(row.querySelector('[data-k="price"]'));
-        if (name || q !== null || p !== null) mats.push({ name: name, qty: z(q), price: z(p) });
-      });
-      if (!mats.length) mats.push({ name: '', qty: 0, price: 0 });
-
-      var hours = z(field('hours')), rate = z(field('rate')), over = z(field('over'));
-      var base = z(field('base')), m = z(field('markup')), d = z(field('disc'));
-      var salary = z(field('salary')), mp = z(field('pct'));
-      var isMargin = mode === 'margin';
-
-      // Значения для показа до пересчёта: те же формулы, что в ячейках
-      var mat = 0;
-      mats.forEach(function (r) { mat += r.qty * r.price; });
-      var work = hours * rate, cost = mat + work + over;
-      var minP = isMargin ? (m < 100 ? cost / (1 - m / 100) : 0) : cost * (1 + m / 100);
-      var maxRub = Math.max(0, base - minP);
-      var maxPct = base > 0 ? Math.max(0, floor2((base - minP) / base * 100)) : 0;
-      var pD = base * (1 - d / 100);
-      var mk = cost > 0 ? round2((pD - cost) / cost * 100) : 0;
-      var mg = pD > 0 ? round2((pD - cost) / pD * 100) : 0;
-      var ok = round2(pD) >= round2(minP);
+      var c = compute();
+      if (!c.mats.length) c.mats.push({ name: '', qty: 0, price: 0 });
+      var isMargin = c.isMargin;
+      var minP = c.minP === null ? 0 : c.minP;
+      var maxRub = Math.max(0, c.base - minP);
+      var maxPct = c.base > 0 ? Math.max(0, floor2((c.base - minP) / c.base * 100)) : 0;
+      var mk = c.cost > 0 ? round2(c.profit / c.cost * 100) : 0;
+      var mg = c.pD > 0 ? round2(c.profit / c.pD * 100) : 0;
+      var ok = round2(c.pD) >= round2(minP);
       var badText = 'Скидка ниже допустимой ' + (isMargin ? 'маржи' : 'наценки');
-      var okText = ok ? 'Скидка допустима' : badText;
-      var short = Math.max(0, minP - pD);
-      var b0 = base * mp / 100, bD = pD * mp / 100;
+      var short = Math.max(0, minP - c.pD);
 
       // Стили: 1 заголовок, 2 шапка, 3 текст, 4 ввод-число, 5 формула, 6 пояснение,
       // 7 раздел, 8 итог-число, 9 ввод-текст, 10 итог-текст, 11 жирный текст, 12 примечание, 13 расчёт-текст
@@ -518,20 +635,19 @@
       function put(cells) { rows.push(cells); return rows.length; }
       function blank() { rows.push([]); }
       function wide(cell) { merges.push('A' + (rows.length + 1) + ':F' + (rows.length + 1)); return put([cell]); }
-
-      // Текст «расчёт на ваших цифрах»: строки и [адрес, значение] → формула с FIXED и готовый текст
       function f2(n) { n = round2(n); if (n === 0) n = 0; return n.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+      // Текст «расчёт на ваших цифрах»: строки и [адрес, значение] → формула с FIXED и готовый текст
       function show(parts) {
         return {
           f: parts.map(function (p) {
             if (typeof p === 'string') return '"' + p.replace(/"/g, '""') + '"';
             if (p.raw) return p.raw;
-            return 'FIXED(' + p[0] + ',2)';
+            return 'FIXED(' + p[0] + ',' + (p[2] === 0 ? 0 : 2) + ')';
           }).join('&'),
           v: parts.map(function (p) {
             if (typeof p === 'string') return p;
             if (p.raw) return p.v;
-            return f2(p[1]);
+            return p[2] === 0 ? Math.round(p[1]).toLocaleString('ru-RU') : f2(p[1]);
           }).join(''),
           s: 13
         };
@@ -542,181 +658,253 @@
         return put([{ v: label, s: cell.s === 8 || cell.s === 10 ? 11 : 3 }, { s: 3 }, { s: 3 }, cell,
           { v: explain, s: 6 }, numbers || { s: 13 }]);
       }
+      function next() { return rows.length + 1; }
+      function D(r) { return 'D' + r; }
       function input(v) { return { v: v, s: 4 }; }
       function calc(f, v, total) { return { f: f, v: v, s: total ? (typeof v === 'string' ? 10 : 8) : 5 }; }
       function head(title) {
         put([{ v: title, s: 7 }]);
-        merges.push('A' + (rows.length + 1) + ':C' + (rows.length + 1));
+        merges.push('A' + next() + ':C' + next());
         put([{ v: 'Показатель', s: 2 }, { s: 2 }, { s: 2 }, { v: 'Значение', s: 2 },
           { v: 'Как считается (в скобках — адрес ячейки)', s: 2 }, { v: 'Расчёт на ваших цифрах', s: 2 }]);
       }
 
-      put([{ v: 'Расчёт максимальной скидки', s: 1 }]);
+      put([{ v: 'Расчёт максимальной скидки — ' + (c.kind === 'prod' ? 'производство' : 'товар'), s: 1 }]);
       put([{ v: 'Дата расчёта: ' + new Date().toLocaleDateString('ru-RU'), s: 12 }]);
       blank();
       put([{ v: 'Как читать этот файл', s: 7 }]);
-      merges.push('B5:F5', 'B6:F6', 'B7:F7', 'B8:F8', 'B9:F9');
-      put([{ v: 'Жёлтая ячейка', s: 9 }, { v: 'Исходные данные из калькулятора. Их можно менять — всё остальное пересчитается само.', s: 3 }]);
-      put([{ v: 'Зелёная ячейка', s: 10 }, { v: 'Главные итоги.', s: 3 }]);
-      put([{ v: 'Столбец E', s: 11 }, { v: 'Как считается словами. В скобках адрес ячейки, откуда берётся число: (D19) — столбец D, строка 19.', s: 3 }]);
-      put([{ v: 'Столбец F', s: 11 }, { v: 'Та же формула, но с вашими числами — можно проверить на обычном калькуляторе.', s: 3 }]);
-      put([{ v: 'Формула ячейки', s: 11 }, { v: 'Нажмите на любую ячейку в столбце D — формула появится в строке формул над таблицей. Что значат слова — на листе «Что значат слова».', s: 3 }]);
-      blank();
-
-      put([{ v: '1. Комплектующие (материалы)', s: 7 }]);
-      put([{ v: 'Наименование', s: 2 }, { v: 'Кол-во', s: 2 }, { v: 'Цена за ед., ₽', s: 2 }, { v: 'Сумма, ₽', s: 2 },
-        { v: 'Как считается (в скобках — адрес ячейки)', s: 2 }, { v: 'Расчёт на ваших цифрах', s: 2 }]);
-      var first = rows.length + 1;
-      mats.forEach(function (r) {
-        var n = rows.length + 1;
-        put([{ v: r.name, s: 9 }, input(r.qty), input(r.price), calc('B' + n + '*C' + n, r.qty * r.price),
-          { v: 'Количество (B' + n + ') × цена за единицу (C' + n + ')', s: 6 },
-          show([['B' + n, r.qty], ' × ', ['C' + n, r.price], ' = ', ['D' + n, r.qty * r.price]])]);
+      [
+        [{ v: 'Жёлтая ячейка', s: 9 }, 'Исходные данные из калькулятора. Их можно менять — всё остальное пересчитается само.'],
+        [{ v: 'Зелёная ячейка', s: 10 }, 'Главные итоги.'],
+        [{ v: 'Столбец E', s: 11 }, 'Как считается словами. В скобках адрес ячейки, откуда берётся число: (D19) — столбец D, строка 19.'],
+        [{ v: 'Столбец F', s: 11 }, 'Та же формула, но с вашими числами — можно проверить на обычном калькуляторе.'],
+        [{ v: 'Формула ячейки', s: 11 }, 'Нажмите на любую ячейку в столбце D — формула появится в строке формул над таблицей. Что значат слова — на листе «Что значат слова».']
+      ].forEach(function (r) {
+        merges.push('B' + next() + ':F' + next());
+        put([r[0], { v: r[1], s: 3 }, { s: 3 }, { s: 3 }, { s: 3 }, { s: 3 }]);
       });
-      var last = rows.length;
-      var matParts = [];
-      for (var k = first; k <= last; k++) {
-        if (k > first) matParts.push(' + ');
-        matParts.push(['D' + k, mats[k - first].qty * mats[k - first].price]);
-      }
-      var rMat = rows.length + 1;
-      line('Итого материалы, ₽', calc('SUM(D' + first + ':D' + last + ')', mat, true),
-        'Сумма всех строк столбца «Сумма» (D' + first + (last > first ? '…D' + last : '') + ')',
-        show(matParts.concat([' = ', ['D' + rMat, mat]])));
       blank();
 
-      head('2. Себестоимость — все затраты на изделие');
-      var rH = line('Затраченное время, часов', input(hours), 'Из калькулятора: «Затраченное время»');
-      var rR = line('Ставка специалиста, ₽/час', input(rate), 'Из калькулятора: «Ставка специалиста»');
-      var rW = rows.length + 1;
-      line('Работы, ₽', calc('D' + rH + '*D' + rR, work), 'Часы (D' + rH + ') × ставка (D' + rR + ')',
-        show([['D' + rH, hours], ' × ', ['D' + rR, rate], ' = ', ['D' + rW, work]]));
-      var rO = line('Накладные, ₽', input(over), 'Из калькулятора: упаковка, логистика, свет');
-      var rM = rows.length + 1;
-      line('Материалы, ₽', calc('D' + rMat, mat), 'Берётся из итога раздела 1 (D' + rMat + ')',
-        show([['D' + rM, mat]]));
-      var rC = rows.length + 1;
-      line('Себестоимость, ₽', calc('D' + rM + '+D' + rW + '+D' + rO, cost, true),
-        'Материалы (D' + rM + ') + работы (D' + rW + ') + накладные (D' + rO + ')',
-        show([['D' + rM, mat], ' + ', ['D' + rW, work], ' + ', ['D' + rO, over], ' = ', ['D' + rC, cost]]));
-      blank();
-
-      head('3. Минимальная цена и максимальная скидка');
-      line('Способ расчёта', { v: isMargin ? 'Маржа' : 'Наценка', s: 10 },
-        isMargin ? 'Маржа — доля заработка в цене продажи. Формулы ниже построены под этот способ'
-                 : 'Наценка — процент сверху к себестоимости. Формулы ниже построены под этот способ');
-      var rB = line('Базовая цена (прайс), ₽', input(base), 'Из калькулятора: цена по прайсу до скидки');
-      var rMk = line('Минимально допустимая ' + (isMargin ? 'маржа' : 'наценка') + ', %', input(m),
-        isMargin ? 'Из калькулятора. Маржа считается от цены продажи' : 'Из калькулятора. Наценка считается на себестоимость');
-      var rMin = rows.length + 1;
-      if (isMargin) {
-        line('Минимально допустимая цена, ₽', calc('IF(D' + rMk + '<100,D' + rC + '/(1-D' + rMk + '/100),0)', minP, true),
-          'Себестоимость (D' + rC + ') / (1 − маржа (D' + rMk + ') / 100). При марже 20% себестоимость — это 80% цены, ' +
-          'поэтому делим на 0,8. Дешевле этой цены продавать нельзя',
-          show([['D' + rC, cost], ' / (1 − ', ['D' + rMk, m], ' / 100) = ', ['D' + rMin, minP]]));
+      // 1. Затраты на 1 шт
+      var unitRows = [];   // [адрес, значение, название] слагаемых себестоимости 1 шт без расходов на партию
+      if (c.kind === 'prod') {
+        put([{ v: '1. Затраты на 1 изделие', s: 7 }]);
+        put([{ v: 'Комплектующие', s: 2 }, { v: 'Кол-во', s: 2 }, { v: 'Цена за ед., ₽', s: 2 }, { v: 'Сумма, ₽', s: 2 },
+          { v: 'Как считается (в скобках — адрес ячейки)', s: 2 }, { v: 'Расчёт на ваших цифрах', s: 2 }]);
+        var first = next();
+        c.mats.forEach(function (r) {
+          var n = next();
+          put([{ v: r.name, s: 9 }, input(r.qty), input(r.price), calc('B' + n + '*C' + n, r.qty * r.price),
+            { v: 'Количество (B' + n + ') × цена за единицу (C' + n + ')', s: 6 },
+            show([['B' + n, r.qty], ' × ', ['C' + n, r.price], ' = ', [D(n), r.qty * r.price]])]);
+        });
+        var last = rows.length;
+        var matParts = [];
+        for (var k = first; k <= last; k++) {
+          if (k > first) matParts.push(' + ');
+          matParts.push([D(k), c.mats[k - first].qty * c.mats[k - first].price]);
+        }
+        var rMat = next();
+        line('Итого комплектующие, ₽', calc('SUM(D' + first + ':D' + last + ')', c.mat, true),
+          'Сумма всех строк столбца «Сумма» (D' + first + (last > first ? '…D' + last : '') + ')',
+          show(matParts.concat([' = ', [D(rMat), c.mat]])));
+        var rH = line('Затраченное время, часов', input(c.hours), 'Из калькулятора: «Затраченное время»');
+        var rR = line('Ставка специалиста, ₽/час', input(c.rate), 'Из калькулятора: «Ставка специалиста»');
+        var rW = next();
+        line('Работа, ₽', calc(D(rH) + '*' + D(rR), c.work, true), 'Часы (D' + rH + ') × ставка (D' + rR + ')',
+          show([[D(rH), c.hours], ' × ', [D(rR), c.rate], ' = ', [D(rW), c.work]]));
+        unitRows = [[D(rMat), c.mat, 'комплектующие'], [D(rW), c.work, 'работа']];
       } else {
-        line('Минимально допустимая цена, ₽', calc('D' + rC + '*(1+D' + rMk + '/100)', minP, true),
-          'Себестоимость (D' + rC + ') × (1 + наценка (D' + rMk + ') / 100). При наценке 20% это себестоимость × 1,2. ' +
-          'Дешевле этой цены продавать нельзя',
-          show([['D' + rC, cost], ' × (1 + ', ['D' + rMk, m], ' / 100) = ', ['D' + rMin, minP]]));
+        put([{ v: '1. Затраты на 1 шт товара', s: 7 }]);
+        merges.push('A' + next() + ':C' + next());
+        put([{ v: 'Показатель', s: 2 }, { s: 2 }, { s: 2 }, { v: 'Значение', s: 2 },
+          { v: 'Как считается (в скобках — адрес ячейки)', s: 2 }, { v: 'Расчёт на ваших цифрах', s: 2 }]);
+        var rBuy = line('Закупочная цена, ₽', input(c.buy), 'Из калькулятора: «Закупочная цена»');
+        var rPack = line('Упаковка и маркировка, ₽', input(c.pack), 'Из калькулятора: «Упаковка и маркировка»');
+        unitRows = [[D(rBuy), c.buy, 'закупка'], [D(rPack), c.pack, 'упаковка']];
       }
-      var rMr = rows.length + 1;
-      line('Максимальная скидка, ₽', calc('MAX(0,D' + rB + '-D' + rMin + ')', maxRub),
+      blank();
+
+      // 2. Себестоимость 1 шт
+      head('2. Себестоимость 1 шт');
+      var rN = line('Количество в партии, шт', input(c.n), 'Из калькулятора: «Количество в партии»');
+      var batchName = c.kind === 'prod' ? 'Накладные' : 'Доставка и прочие расходы';
+      var rBt = line(batchName + ' на всю партию, ₽', input(c.batch), 'Из калькулятора: расходы на всю партию');
+      var rBu = next();
+      line(batchName + ' на 1 шт, ₽', calc(D(rBt) + '/' + D(rN), c.batchUnit),
+        'Расходы на партию (D' + rBt + ') / количество (D' + rN + ')',
+        show([[D(rBt), c.batch], ' / ', [D(rN), c.n, 0], ' = ', [D(rBu), c.batchUnit]]));
+      var rC = next();
+      var costF = unitRows.map(function (u) { return u[0]; }).concat([D(rBu)]).join('+');
+      var costShow = [];
+      unitRows.forEach(function (u, i) { if (i) costShow.push(' + '); costShow.push([u[0], u[1]]); });
+      costShow.push(' + ', [D(rBu), c.batchUnit], ' = ', [D(rC), c.cost]);
+      line('Себестоимость 1 шт, ₽', calc(costF, c.cost, true),
+        unitRows.map(function (u) { return u[2].charAt(0).toUpperCase() + u[2].slice(1) + ' (' + u[0] + ')'; }).join(' + ') +
+        ' + ' + batchName.toLowerCase() + ' на 1 шт (D' + rBu + ')', show(costShow));
+      var rCb = next();
+      line('Себестоимость всей партии, ₽', calc(D(rC) + '*' + D(rN), c.cost * c.n),
+        'Себестоимость 1 шт (D' + rC + ') × количество (D' + rN + ')',
+        show([[D(rC), c.cost], ' × ', [D(rN), c.n, 0], ' = ', [D(rCb), c.cost * c.n]]));
+      blank();
+
+      // 3. Расходы от цены
+      head('3. Расходы от цены продажи');
+      var rTx = line('Налог с выручки, %', input(c.tax), 'Из калькулятора. Берётся от цены продажи');
+      var rCm = line('Комиссия банка или маркетплейса, %', input(c.comm), 'Из калькулятора. Берётся от цены продажи');
+      var rPc = line('Процент менеджера, %', input(c.mp), 'Из калькулятора, блок «Зарплата менеджера». Берётся от цены продажи');
+      var rRr = next();
+      line('Всего расходов от цены, %', calc(D(rTx) + '+' + D(rCm) + '+' + D(rPc), c.r, true),
+        'Налог (D' + rTx + ') + комиссия (D' + rCm + ') + менеджер (D' + rPc + '). Столько процентов цены уходит, не доходя до вас',
+        show([[D(rTx), c.tax], ' + ', [D(rCm), c.comm], ' + ', [D(rPc), c.mp], ' = ', [D(rRr), c.r], '%']));
+      blank();
+
+      // 4. Минимальная цена и максимальная скидка
+      head('4. Минимальная цена и максимальная скидка');
+      line('Способ расчёта', { v: isMargin ? 'Маржа' : 'Наценка', s: 10 },
+        isMargin ? 'Маржа — чистая прибыль в процентах от цены продажи. Формулы ниже построены под этот способ'
+                 : 'Наценка — чистая прибыль в процентах от себестоимости. Формулы ниже построены под этот способ');
+      var rB = line('Цена по прайсу за 1 шт, ₽', input(c.base), 'Из калькулятора: цена до скидки');
+      var rMk = line('Минимально допустимая ' + (isMargin ? 'маржа' : 'наценка') + ', %', input(c.m),
+        isMargin ? 'Из калькулятора. Сколько процентов цены должно остаться чистой прибылью'
+                 : 'Из калькулятора. Сколько процентов себестоимости должно остаться чистой прибылью');
+      var rMin = next();
+      if (isMargin) {
+        line('Минимально допустимая цена за 1 шт, ₽',
+          calc('IF(' + D(rRr) + '+' + D(rMk) + '<100,' + D(rC) + '/(1-(' + D(rRr) + '+' + D(rMk) + ')/100),0)', minP, true),
+          'Себестоимость (D' + rC + ') / (1 − (расходы от цены (D' + rRr + ') + маржа (D' + rMk + ')) / 100). ' +
+          'Из цены уходят расходы и ваша маржа, остаток должен покрыть себестоимость. Дешевле продавать нельзя',
+          show([[D(rC), c.cost], ' / (1 − (', [D(rRr), c.r], ' + ', [D(rMk), c.m], ') / 100) = ', [D(rMin), minP]]));
+      } else {
+        line('Минимально допустимая цена за 1 шт, ₽',
+          calc('IF(' + D(rRr) + '<100,' + D(rC) + '*(1+' + D(rMk) + '/100)/(1-' + D(rRr) + '/100),0)', minP, true),
+          'Себестоимость (D' + rC + ') × (1 + наценка (D' + rMk + ') / 100) / (1 − расходы от цены (D' + rRr + ') / 100). ' +
+          'Сначала добавляем нужную прибыль, потом делим, потому что налог, комиссия и менеджер забирают часть цены. Дешевле продавать нельзя',
+          show([[D(rC), c.cost], ' × (1 + ', [D(rMk), c.m], ' / 100) / (1 − ', [D(rRr), c.r], ' / 100) = ', [D(rMin), minP]]));
+      }
+      var rMr = next();
+      line('Максимальная скидка за 1 шт, ₽', calc('MAX(0,' + D(rB) + '-' + D(rMin) + ')', maxRub),
         'Прайс (D' + rB + ') − минимальная цена (D' + rMin + '). Если прайс ниже минимальной цены, скидка 0',
-        show([['D' + rB, base], ' − ', ['D' + rMin, minP], ' = ', ['D' + rMr, maxRub],
-          { raw: 'IF(D' + rB + '<D' + rMin + '," (прайс ниже минимальной цены, поэтому 0)","")',
-            v: base < minP ? ' (прайс ниже минимальной цены, поэтому 0)' : '' }]));
-      var rMp = rows.length + 1;
-      line('Максимальная скидка, %', calc('IF(D' + rB + '>0,MAX(0,ROUNDDOWN((D' + rB + '-D' + rMin + ')/D' + rB + '*100,2)),0)', maxPct, true),
+        show([[D(rB), c.base], ' − ', [D(rMin), minP], ' = ', [D(rMr), maxRub],
+          { raw: 'IF(' + D(rB) + '<' + D(rMin) + '," (прайс ниже минимальной цены, поэтому 0)","")',
+            v: c.base < minP ? ' (прайс ниже минимальной цены, поэтому 0)' : '' }]));
+      var rMp = next();
+      line('Максимальная скидка, %', calc('IF(' + D(rB) + '>0,MAX(0,ROUNDDOWN((' + D(rB) + '-' + D(rMin) + ')/' + D(rB) + '*100,2)),0)', maxPct, true),
         'Максимальная скидка в рублях (D' + rMr + ') / прайс (D' + rB + ') × 100. Округление вниз до сотых, чтобы не перейти границу',
-        show([['D' + rMr, maxRub], ' / ', ['D' + rB, base], ' × 100 = ', ['D' + rMp, maxPct], '%']));
+        show([[D(rMr), maxRub], ' / ', [D(rB), c.base], ' × 100 = ', [D(rMp), maxPct], '%']));
       blank();
 
-      head('4. Скидка, которую хочу дать');
-      var rD = line('Скидка, %', input(d), 'Из калькулятора: «Скидка, которую хочу дать»');
-      var rSk = rows.length + 1;
-      line('Скидка, ₽', calc('D' + rB + '*D' + rD + '/100', base * d / 100),
+      // 5. Скидка и прибыль
+      head('5. Скидка и чистая прибыль');
+      var rD = line('Скидка, %', input(c.d), 'Из калькулятора: «Скидка, которую хочу дать»');
+      var rSk = next();
+      line('Скидка за 1 шт, ₽', calc(D(rB) + '*' + D(rD) + '/100', c.base * c.d / 100),
         'Прайс (D' + rB + ') × скидка (D' + rD + ') / 100',
-        show([['D' + rB, base], ' × ', ['D' + rD, d], ' / 100 = ', ['D' + rSk, base * d / 100]]));
-      var rP = rows.length + 1;
-      line('Цена со скидкой, ₽', calc('D' + rB + '-D' + rSk, pD, true),
+        show([[D(rB), c.base], ' × ', [D(rD), c.d], ' / 100 = ', [D(rSk), c.base * c.d / 100]]));
+      var rP = next();
+      line('Цена со скидкой за 1 шт, ₽', calc(D(rB) + '-' + D(rSk), c.pD, true),
         'Прайс (D' + rB + ') − скидка в рублях (D' + rSk + ')',
-        show([['D' + rB, base], ' − ', ['D' + rSk, base * d / 100], ' = ', ['D' + rP, pD]]));
-      var rZ = rows.length + 1;
-      line('Заработок с этой цены, ₽', calc('D' + rP + '-D' + rC, pD - cost),
-        'Цена со скидкой (D' + rP + ') − себестоимость (D' + rC + ')',
-        show([['D' + rP, pD], ' − ', ['D' + rC, cost], ' = ', ['D' + rZ, pD - cost]]));
-      var rMk2 = rows.length + 1;
-      line('Итоговая наценка, %', calc('IF(D' + rC + '>0,ROUND(D' + rZ + '/D' + rC + '*100,2),0)', mk),
-        'Заработок (D' + rZ + ') / себестоимость (D' + rC + ') × 100. Сколько процентов сверху к затратам',
-        show([['D' + rZ, pD - cost], ' / ', ['D' + rC, cost], ' × 100 = ', ['D' + rMk2, mk], '%']));
-      var rMg2 = rows.length + 1;
-      line('Итоговая маржа, %', calc('IF(D' + rP + '>0,ROUND(D' + rZ + '/D' + rP + '*100,2),0)', mg),
-        'Заработок (D' + rZ + ') / цена со скидкой (D' + rP + ') × 100. Какая доля цены — ваш заработок',
-        show([['D' + rZ, pD - cost], ' / ', ['D' + rP, pD], ' × 100 = ', ['D' + rMg2, mg], '%']));
-      var rOk = rows.length + 1;
-      line('Проверка', calc('IF(ROUND(D' + rP + ',2)>=ROUND(D' + rMin + ',2),"Скидка допустима","' + badText + '")', okText, true),
+        show([[D(rB), c.base], ' − ', [D(rSk), c.base * c.d / 100], ' = ', [D(rP), c.pD]]));
+      var rTr = next();
+      line('Налог с 1 шт, ₽', calc(D(rP) + '*' + D(rTx) + '/100', c.taxRub),
+        'Цена со скидкой (D' + rP + ') × налог (D' + rTx + ') / 100',
+        show([[D(rP), c.pD], ' × ', [D(rTx), c.tax], ' / 100 = ', [D(rTr), c.taxRub]]));
+      var rCr = next();
+      line('Комиссия с 1 шт, ₽', calc(D(rP) + '*' + D(rCm) + '/100', c.commRub),
+        'Цена со скидкой (D' + rP + ') × комиссия (D' + rCm + ') / 100',
+        show([[D(rP), c.pD], ' × ', [D(rCm), c.comm], ' / 100 = ', [D(rCr), c.commRub]]));
+      var rMg = next();
+      line('Менеджеру с 1 шт, ₽', calc(D(rP) + '*' + D(rPc) + '/100', c.mgrRub),
+        'Цена со скидкой (D' + rP + ') × процент менеджера (D' + rPc + ') / 100',
+        show([[D(rP), c.pD], ' × ', [D(rPc), c.mp], ' / 100 = ', [D(rMg), c.mgrRub]]));
+      var rPr = next();
+      line('Чистая прибыль с 1 шт, ₽', calc(D(rP) + '-' + D(rC) + '-' + D(rTr) + '-' + D(rCr) + '-' + D(rMg), c.profit, true),
+        'Цена со скидкой (D' + rP + ') − себестоимость (D' + rC + ') − налог (D' + rTr + ') − комиссия (D' + rCr + ') − менеджеру (D' + rMg + ')',
+        show([[D(rP), c.pD], ' − ', [D(rC), c.cost], ' − ', [D(rTr), c.taxRub], ' − ', [D(rCr), c.commRub], ' − ',
+          [D(rMg), c.mgrRub], ' = ', [D(rPr), c.profit]]));
+      var rMk2 = next();
+      line('Наценка по чистой прибыли, %', calc('IF(' + D(rC) + '>0,ROUND(' + D(rPr) + '/' + D(rC) + '*100,2),0)', mk),
+        'Чистая прибыль (D' + rPr + ') / себестоимость (D' + rC + ') × 100',
+        show([[D(rPr), c.profit], ' / ', [D(rC), c.cost], ' × 100 = ', [D(rMk2), mk], '%']));
+      var rMg2 = next();
+      line('Маржа по чистой прибыли, %', calc('IF(' + D(rP) + '>0,ROUND(' + D(rPr) + '/' + D(rP) + '*100,2),0)', mg),
+        'Чистая прибыль (D' + rPr + ') / цена со скидкой (D' + rP + ') × 100',
+        show([[D(rPr), c.profit], ' / ', [D(rP), c.pD], ' × 100 = ', [D(rMg2), mg], '%']));
+      var cmp = 'ROUND(' + D(rP) + ',2)>=ROUND(' + D(rMin) + ',2)';
+      line('Проверка', calc('IF(' + cmp + ',"Скидка допустима","' + badText + '")', ok ? 'Скидка допустима' : badText, true),
         'Цена со скидкой (D' + rP + ') сравнивается с минимально допустимой ценой (D' + rMin + ')',
-        show([['D' + rP, pD],
-          { raw: 'IF(ROUND(D' + rP + ',2)>=ROUND(D' + rMin + ',2)," не меньше "," меньше ")', v: ok ? ' не меньше ' : ' меньше ' },
-          ['D' + rMin, minP]]));
-      var rSh = rows.length + 1;
-      line('Не хватает до минимальной цены, ₽', calc('MAX(0,D' + rMin + '-D' + rP + ')', short),
+        show([[D(rP), c.pD], { raw: 'IF(' + cmp + '," не меньше "," меньше ")', v: ok ? ' не меньше ' : ' меньше ' }, [D(rMin), minP]]));
+      var rSh = next();
+      line('Не хватает до минимальной цены за 1 шт, ₽', calc('MAX(0,' + D(rMin) + '-' + D(rP) + ')', short),
         'Минимальная цена (D' + rMin + ') − цена со скидкой (D' + rP + '). 0, если скидка допустима',
-        show([{ raw: 'IF(D' + rSh + '>0,FIXED(D' + rMin + ',2)&" − "&FIXED(D' + rP + ',2)&" = "&FIXED(D' + rSh + ',2),"0 — скидка допустима")',
-          v: short > 0 ? f2(minP) + ' − ' + f2(pD) + ' = ' + f2(short) : '0 — скидка допустима' }]));
+        show([{ raw: 'IF(' + D(rSh) + '>0,FIXED(' + D(rMin) + ',2)&" − "&FIXED(' + D(rP) + ',2)&" = "&FIXED(' + D(rSh) + ',2),"0 — скидка допустима")',
+          v: short > 0 ? f2(minP) + ' − ' + f2(c.pD) + ' = ' + f2(short) : '0 — скидка допустима' }]));
+      var rDl = next();
+      line('Сумма сделки, ₽', calc(D(rP) + '*' + D(rN), c.deal),
+        'Цена со скидкой (D' + rP + ') × количество (D' + rN + ')',
+        show([[D(rP), c.pD], ' × ', [D(rN), c.n, 0], ' = ', [D(rDl), c.deal]]));
+      var rPd = next();
+      line('Чистая прибыль со сделки, ₽', calc(D(rPr) + '*' + D(rN), c.profitDeal, true),
+        'Чистая прибыль с 1 шт (D' + rPr + ') × количество (D' + rN + ')',
+        show([[D(rPr), c.profit], ' × ', [D(rN), c.n, 0], ' = ', [D(rPd), c.profitDeal]]));
       blank();
 
-      head('5. Зарплата менеджера');
-      var rS = line('Оклад, ₽/мес', input(salary), 'Из калькулятора: «Оклад»');
-      var rPc = line('Процент от суммы продажи, %', input(mp), 'Из калькулятора: «Процент от суммы продажи»');
-      var r0 = rows.length + 1;
-      line('Получит без скидки, ₽', calc('D' + rB + '*D' + rPc + '/100', b0, true),
-        'Прайс (D' + rB + ') × процент (D' + rPc + ') / 100',
-        show([['D' + rB, base], ' × ', ['D' + rPc, mp], ' / 100 = ', ['D' + r0, b0]]));
-      var r1 = rows.length + 1;
-      line('Получит со скидкой, ₽', calc('D' + rP + '*D' + rPc + '/100', bD, true),
-        'Цена со скидкой (D' + rP + ') × процент (D' + rPc + ') / 100',
-        show([['D' + rP, pD], ' × ', ['D' + rPc, mp], ' / 100 = ', ['D' + r1, bD]]));
-      var r2 = rows.length + 1;
-      line('Доход за месяц без скидки, ₽', calc('D' + rS + '+D' + r0, salary + b0),
+      // 6. Менеджер
+      head('6. Зарплата менеджера');
+      var rS = line('Оклад, ₽/мес', input(c.salary), 'Из калькулятора: «Оклад»');
+      var r0 = next();
+      line('Получит без скидки, ₽', calc(D(rB) + '*' + D(rN) + '*' + D(rPc) + '/100', c.b0, true),
+        'Прайс (D' + rB + ') × количество (D' + rN + ') × процент (D' + rPc + ') / 100',
+        show([[D(rB), c.base], ' × ', [D(rN), c.n, 0], ' × ', [D(rPc), c.mp], ' / 100 = ', [D(r0), c.b0]]));
+      var r1 = next();
+      line('Получит со скидкой, ₽', calc(D(rDl) + '*' + D(rPc) + '/100', c.bD, true),
+        'Сумма сделки (D' + rDl + ') × процент (D' + rPc + ') / 100',
+        show([[D(rDl), c.deal], ' × ', [D(rPc), c.mp], ' / 100 = ', [D(r1), c.bD]]));
+      var r2 = next();
+      line('Доход за месяц без скидки, ₽', calc(D(rS) + '+' + D(r0), c.salary + c.b0),
         'Оклад (D' + rS + ') + процент без скидки (D' + r0 + ')',
-        show([['D' + rS, salary], ' + ', ['D' + r0, b0], ' = ', ['D' + r2, salary + b0]]));
-      var r3 = rows.length + 1;
-      line('Доход за месяц со скидкой, ₽', calc('D' + rS + '+D' + r1, salary + bD),
+        show([[D(rS), c.salary], ' + ', [D(r0), c.b0], ' = ', [D(r2), c.salary + c.b0]]));
+      var r3 = next();
+      line('Доход за месяц со скидкой, ₽', calc(D(rS) + '+' + D(r1), c.salary + c.bD),
         'Оклад (D' + rS + ') + процент со скидкой (D' + r1 + ')',
-        show([['D' + rS, salary], ' + ', ['D' + r1, bD], ' = ', ['D' + r3, salary + bD]]));
+        show([[D(rS), c.salary], ' + ', [D(r1), c.bD], ' = ', [D(r3), c.salary + c.bD]]));
       blank();
 
-      put([{ v: '6. Вывод простыми словами', s: 7 }]);
-      function say(parts) { var c = show(parts); c.s = 10; wide(c); }
-      say(['Продавать дешевле ', ['D' + rMin, minP], ' ₽ нельзя — иначе заработок будет меньше ',
-        ['D' + rMk, m], isMargin ? '% от цены.' : '% сверху к себестоимости.']);
-      say(['Максимальная скидка от прайса — ', ['D' + rMp, maxPct], '%, это ', ['D' + rMr, maxRub], ' ₽.']);
-      say([{ raw: 'IF(ROUND(D' + rP + ',2)>=ROUND(D' + rMin + ',2),"Скидка "&FIXED(D' + rD + ',2)&"% допустима: клиент заплатит "&FIXED(D' + rP + ',2)&" ₽.",' +
-        '"Скидка "&FIXED(D' + rD + ',2)&"% слишком большая: цена "&FIXED(D' + rP + ',2)&" ₽ ниже минимальной на "&FIXED(D' + rSh + ',2)&" ₽.")',
-        v: ok ? 'Скидка ' + f2(d) + '% допустима: клиент заплатит ' + f2(pD) + ' ₽.'
-              : 'Скидка ' + f2(d) + '% слишком большая: цена ' + f2(pD) + ' ₽ ниже минимальной на ' + f2(short) + ' ₽.' }]);
-      say(['Менеджер получит ', ['D' + r0, b0], ' ₽ без скидки и ', ['D' + r1, bD], ' ₽ со скидкой.']);
+      put([{ v: '7. Вывод простыми словами', s: 7 }]);
+      function say(parts) { var x = show(parts); x.s = 10; wide(x); }
+      say(['Продавать дешевле ', [D(rMin), minP], ' ₽ за 1 шт нельзя — иначе после налога, комиссии и менеджера прибыль будет меньше ',
+        [D(rMk), c.m], isMargin ? '% от цены.' : '% от себестоимости.']);
+      say(['Максимальная скидка от прайса — ', [D(rMp), maxPct], '%, это ', [D(rMr), maxRub], ' ₽ за 1 шт.']);
+      say([{ raw: 'IF(' + cmp + ',"Скидка "&FIXED(' + D(rD) + ',2)&"% допустима: клиент заплатит "&FIXED(' + D(rP) + ',2)&" ₽ за 1 шт.",' +
+        '"Скидка "&FIXED(' + D(rD) + ',2)&"% слишком большая: цена "&FIXED(' + D(rP) + ',2)&" ₽ ниже минимальной на "&FIXED(' + D(rSh) + ',2)&" ₽.")',
+        v: ok ? 'Скидка ' + f2(c.d) + '% допустима: клиент заплатит ' + f2(c.pD) + ' ₽ за 1 шт.'
+              : 'Скидка ' + f2(c.d) + '% слишком большая: цена ' + f2(c.pD) + ' ₽ ниже минимальной на ' + f2(short) + ' ₽.' }]);
+      say(['Компании останется чистыми ', [D(rPd), c.profitDeal], ' ₽ со сделки (', [D(rPr), c.profit], ' ₽ с каждой штуки).']);
+      say(['Менеджер получит ', [D(r0), c.b0], ' ₽ без скидки и ', [D(r1), c.bD], ' ₽ со скидкой.']);
 
       // Второй лист — словарь
-      var dict = [], dictMerges = [];
+      var dict = [];
       dict.push([{ v: 'Что значат слова', s: 1 }]);
       dict.push([]);
       dict.push([{ v: 'Слово', s: 2 }, { v: 'Что это простыми словами', s: 2 }, { v: 'Пример', s: 2 }]);
       [
-        ['Себестоимость', 'Все ваши затраты на изделие: материалы + работа + накладные. Сколько вы потратили, чтобы его сделать.',
+        ['Себестоимость', 'Все ваши затраты на одну штуку: материалы + работа + накладные (или закупка + упаковка + доставка).',
           'Материалы 70 ₽ + работа 20 ₽ + упаковка 10 ₽ = себестоимость 100 ₽'],
-        ['Заработок', 'Цена продажи минус себестоимость. То, что остаётся вам.', 'Продали за 120 ₽, потратили 100 ₽ — заработок 20 ₽'],
-        ['Наценка', 'Сколько процентов вы прибавили сверху к своим затратам. Считается от себестоимости.',
-          'Себестоимость 100 ₽ + наценка 20% (20 ₽) = цена 120 ₽'],
-        ['Маржа', 'Какая доля цены продажи — ваш заработок. Считается от цены продажи.',
-          'Цена 125 ₽, из неё 25 ₽ — заработок. 25 / 125 = 20% маржи'],
+        ['Партия', 'Сколько штук делаете или продаёте за раз. Расходы на всю партию (наладка, доставка) делятся на количество.',
+          'Доставка 1 000 ₽ на партию 50 шт = 20 ₽ на каждую штуку'],
+        ['Расходы от цены', 'Расходы, которые считаются в процентах от цены продажи: налог с выручки, комиссия банка или маркетплейса, процент менеджера. Чем выше цена, тем они больше.',
+          'Цена 150 ₽, налог 6% = 9 ₽, менеджеру 3% = 4,50 ₽'],
+        ['Чистая прибыль', 'Что остаётся компании: цена минус себестоимость минус расходы от цены.',
+          '150 ₽ − 100 ₽ − 9 ₽ − 4,50 ₽ = 36,50 ₽'],
+        ['Наценка', 'Чистая прибыль в процентах от себестоимости.', 'Прибыль 20 ₽ при себестоимости 100 ₽ = наценка 20%'],
+        ['Маржа', 'Чистая прибыль в процентах от цены продажи.', 'Прибыль 25 ₽ при цене 125 ₽ = маржа 20%'],
         ['Почему 20% наценки ≠ 20% маржи', 'Проценты берутся от разных сумм: наценка — от затрат, маржа — от цены. Цена всегда больше затрат, поэтому маржа в процентах меньше.',
-          'Себестоимость 100 ₽, цена 120 ₽: наценка 20 / 100 = 20%, маржа 20 / 120 = 16,67%'],
-        ['Минимально допустимая цена', 'Самая низкая цена, при которой вы ещё зарабатываете столько, сколько решили. Дешевле продавать нельзя.',
-          'Себестоимость 100 ₽, минимальная наценка 20% → дешевле 120 ₽ не продаём'],
-        ['Прайс (базовая цена)', 'Цена до скидки, по которой вы обычно продаёте.', 'Прайс 150 ₽'],
+          'Себестоимость 100 ₽, прибыль 20 ₽: наценка 20 / 100 = 20%, маржа 20 / 120 = 16,67%'],
+        ['Минимально допустимая цена', 'Самая низкая цена, при которой после всех расходов остаётся столько прибыли, сколько вы решили. Дешевле продавать нельзя.',
+          'Себестоимость 100 ₽, наценка 20%, расходов от цены нет → дешевле 120 ₽ не продаём'],
+        ['Почему минимальная цена делится на (1 − расходы)', 'Налог, комиссия и менеджер забирают часть цены. Чтобы после них осталось нужное, цену приходится поднимать.',
+          'Нужно 120 ₽ «чистыми», расходы от цены 10% → 120 / 0,9 = 133,33 ₽'],
+        ['Прайс', 'Цена до скидки, по которой вы обычно продаёте.', 'Прайс 150 ₽'],
         ['Максимальная скидка', 'На сколько можно снизить прайс, чтобы не опуститься ниже минимальной цены.',
           'Прайс 150 ₽, минимальная цена 120 ₽ → скидка до 30 ₽, это 30 / 150 = 20%'],
         ['Скидка в процентах', 'Считается от прайса.', 'Скидка 10% от 150 ₽ = 15 ₽, клиент платит 135 ₽'],
@@ -725,8 +913,8 @@
       ].forEach(function (r) { dict.push([{ v: r[0], s: 11 }, { v: r[1], s: 3 }, { v: r[2], s: 6 }]); });
 
       var blob = xlsxBlob([
-        { name: 'Расчёт', rows: rows, merges: merges, cols: [30, 10, 15, 18, 55, 48] },
-        { name: 'Что значат слова', rows: dict, merges: dictMerges, cols: [30, 70, 60] }
+        { name: 'Расчёт', rows: rows, merges: merges, cols: [30, 10, 15, 18, 55, 52] },
+        { name: 'Что значат слова', rows: dict, merges: [], cols: [30, 70, 60] }
       ]);
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -877,6 +1065,7 @@
       rowsWrap.innerHTML = '';
       addRow();
       setMode('markup');
+      setKind('prod');
       results.innerHTML = emptyHtml;
       calculated = false;
       root.classList.remove('is-stale');
@@ -884,13 +1073,17 @@
       try { localStorage.removeItem(STORE_KEY); } catch (e) {}
     }
 
+    function changed() {
+      if (calculated) root.classList.add('is-stale');
+      save();
+    }
+
     // ----- События -----
     root.addEventListener('input', function (e) {
       var t = e.target;
       if (t.classList && t.classList.contains('dc-num')) sanitize(t);
       updateSums();
-      if (calculated) root.classList.add('is-stale');
-      save();
+      changed();
     });
 
     root.addEventListener('click', function (e) {
@@ -898,8 +1091,7 @@
       if (!t || !root.contains(t)) return;
       if (t.classList.contains('dc-add')) {
         addRow().querySelector('[data-k="name"]').focus();
-        if (calculated) root.classList.add('is-stale');
-        save();
+        changed();
       } else if (t.classList.contains('dc-del')) {
         var row = t.closest('.dc-mat-row');
         if (rowsWrap.children.length > 1) {
@@ -908,18 +1100,19 @@
           Array.prototype.forEach.call(row.querySelectorAll('input'), function (el) { el.value = ''; });
         }
         updateSums();
-        if (calculated) root.classList.add('is-stale');
-        save();
+        changed();
       } else if (t.classList.contains('dc-calc')) {
         calculate();
       } else if (t.classList.contains('dc-reset')) {
         reset();
       } else if (t.classList.contains('dc-xlsx')) {
         downloadXlsx();
-      } else if (t.classList.contains('dc-seg-btn')) {
+      } else if (t.hasAttribute('data-mode')) {
         setMode(t.getAttribute('data-mode'));
-        if (calculated) root.classList.add('is-stale');
-        save();
+        changed();
+      } else if (t.hasAttribute('data-kind')) {
+        setKind(t.getAttribute('data-kind'));
+        changed();
       }
     });
 
